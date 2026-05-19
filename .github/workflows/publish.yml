@@ -1,0 +1,68 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.12"
+          cache: true
+
+      - name: Install dependencies
+        run: pdm install -G dev
+
+      - name: Validate tag matches project version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          PROJECT_VERSION=$(python - <<'PY'
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(data['project']['version'])
+          PY
+          )
+          TAG_VERSION="${TAG_NAME#v}"
+          if [[ "$PROJECT_VERSION" != "$TAG_VERSION" ]]; then
+            echo "Tag version ($TAG_VERSION) does not match pyproject version ($PROJECT_VERSION)."
+            exit 1
+          fi
+
+      - name: Prevent duplicate publish
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${TAG_NAME#v}"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/gaussian-rational/$VERSION/json")
+          if [[ "$HTTP_CODE" == "200" ]]; then
+            echo "Version $VERSION is already published on PyPI."
+            exit 1
+          fi
+
+      - name: Run checks
+        run: |
+          pdm run lint
+          pdm run typecheck
+          pdm run test
+
+      - name: Build
+        run: pdm build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

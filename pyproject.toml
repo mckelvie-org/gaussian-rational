@@ -1,0 +1,76 @@
+[build-system]
+requires = ["pdm-backend>=2.4.0"]
+build-backend = "pdm.backend"
+
+[project]
+name = "gaussian-rational"
+version = "0.1.0"
+description = "Exact complex-like scalars with rational real and imaginary parts."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+authors = [
+  { name = "Sam" },
+]
+keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.build]
+includes = ["gaussian_rational"]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.11.0",
+  "python-semantic-release>=10.5.0",
+  "pytest>=8.3.0",
+  "ruff>=0.6.0",
+]
+
+[tool.pdm.scripts]
+test = "pytest"
+lint = "ruff check ."
+typecheck = "mypy gaussian_rational"
+release-print = "python -m semantic_release version --print"
+release-patch = "python -m semantic_release version --patch --skip-build --no-vcs-release --no-push"
+release-minor = "python -m semantic_release version --minor --skip-build --no-vcs-release --no-push"
+release-major = "python -m semantic_release version --major --skip-build --no-vcs-release --no-push"
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["gaussian_rational"]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+build_command = "pdm build"
+tag_format = "v{version}"
+commit_message = "chore(release): {version}"
+allow_zero_version = true

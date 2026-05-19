@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: minor
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        with:
+          python-version: "3.12"
+          cache: true
+
+      - name: Install dependencies
+        run: pdm install -G dev
+
+      - name: Run checks
+        run: |
+          pdm run lint
+          pdm run typecheck
+          pdm run test
+
+      - name: Bump version and create tag
+        env:
+          BUMP: ${{ github.event.inputs.bump }}
+        run: |
+          case "$BUMP" in
+            patch) pdm run release-patch ;;
+            minor) pdm run release-minor ;;
+            major) pdm run release-major ;;
+            *) echo "Unsupported bump: $BUMP"; exit 1 ;;
+          esac
+
+      - name: Push release commit and tag
+        run: |
+          git push --follow-tags
