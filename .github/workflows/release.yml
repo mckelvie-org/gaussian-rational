@@ -8,9 +8,10 @@ on:
         required: true
         type: choice
         options:
-          - test
+          - dev
+          - rc
           - prod
-        default: test
+        default: dev
       bump:
         description: "Version bump type"
         required: true
@@ -21,7 +22,7 @@ on:
           - major
         default: minor
       prerelease_token:
-        description: "Prerelease token for test channel (alpha, beta, rc, dev)"
+        description: "Prerelease token for dev/rc channel (must match channel on main)"
         required: false
         type: string
         default: dev
@@ -60,14 +61,19 @@ jobs:
           PRERELEASE_TOKEN: ${{ github.event.inputs.prerelease_token }}
         run: |
           if [[ "$BRANCH_NAME" == "main" ]]; then
-            if [[ "$CHANNEL" != "test" ]]; then
-              echo "main branch can only create test-channel releases"
+            if [[ "$CHANNEL" != "dev" ]]; then
+              echo "main branch can only create dev-channel releases"
               exit 1
             fi
             if [[ "$PRERELEASE_TOKEN" != "dev" ]]; then
               echo "main branch requires prerelease_token=dev"
               exit 1
             fi
+          fi
+
+          if [[ "$CHANNEL" == "rc" && "$PRERELEASE_TOKEN" != "rc" ]]; then
+            echo "rc channel requires prerelease_token=rc"
+            exit 1
           fi
 
       - name: Bump version
@@ -78,7 +84,7 @@ jobs:
         run: |
           BUMP_FLAG="--$BUMP"
 
-          if [[ "$CHANNEL" == "test" ]]; then
+          if [[ "$CHANNEL" == "dev" || "$CHANNEL" == "rc" ]]; then
             python -m semantic_release version \
               "$BUMP_FLAG" \
               --as-prerelease \
@@ -111,10 +117,15 @@ jobs:
           PY
           )
 
-          if [[ "$CHANNEL" == "test" ]]; then
-            TAG_NAME="test-v$VERSION"
-          else
+          if [[ "$CHANNEL" == "dev" ]]; then
+            TAG_NAME="dev-v$VERSION"
+          elif [[ "$CHANNEL" == "rc" ]]; then
+            TAG_NAME="rc-v$VERSION"
+          elif [[ "$CHANNEL" == "prod" ]]; then
             TAG_NAME="v$VERSION"
+          else
+            echo "Unsupported channel: $CHANNEL"
+            exit 1
           fi
 
           echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"

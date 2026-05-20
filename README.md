@@ -314,18 +314,26 @@ are intended for controlled release operations.
 
 Use the `Release` workflow (`workflow_dispatch`) as the single entrypoint.
 
-- `channel=test` creates a prerelease/dev version and tags it as
-  `test-vX.Y.Z<suffix>`.
-- `channel=prod` creates a stable version and tags it as `vX.Y.Z`.
+- `channel=dev` creates a dev prerelease and tags it as
+  `dev-vX.Y.Z-devN`.
+- `channel=rc` creates a release-candidate prerelease and tags it as
+  `rc-vX.Y.Z-rcN`.
+- `channel=prod` creates a stable production release and tags it as `vX.Y.Z`.
 - `bump` selects `patch`, `minor`, or `major`.
 
 The workflow always runs lint, type-check, and tests before bumping.
+
+Branch policy:
+
+- `main` is dev-only: only `channel=dev` with `prerelease_token=dev` is
+  allowed.
+- RC/prod releases should be cut from non-`main` release branches.
 
 ### Channel guards and duplicate protection
 
 Automated publish workflows enforce lane separation:
 
-- `Publish TestPyPI` (triggered by `test-v*`) requires a prerelease/dev version
+- `Publish TestPyPI` (triggered by `rc-v*`) requires an `rc` prerelease version
   and publishes only to TestPyPI.
 - `Publish` (triggered by `v*`) requires a stable version and publishes only to
   PyPI.
