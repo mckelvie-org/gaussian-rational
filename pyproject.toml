@@ -10,9 +10,9 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
-  { name = "Sam" },
+  { name = "Sam McKelvie", email = "dev@emckelvie.org" },
 ]
-keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric"]
+keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric", "exact", "imaginary", "rational", "scalar", "gaussian", "arithmetic"],
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
