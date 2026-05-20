@@ -24,7 +24,7 @@ on:
         description: "Prerelease token for test channel (alpha, beta, rc, dev)"
         required: false
         type: string
-        default: rc
+        default: dev
 
 jobs:
   release:
@@ -52,6 +52,23 @@ jobs:
           pdm run lint
           pdm run typecheck
           pdm run test
+
+      - name: Enforce main branch version policy
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          CHANNEL: ${{ github.event.inputs.channel }}
+          PRERELEASE_TOKEN: ${{ github.event.inputs.prerelease_token }}
+        run: |
+          if [[ "$BRANCH_NAME" == "main" ]]; then
+            if [[ "$CHANNEL" != "test" ]]; then
+              echo "main branch can only create test-channel releases"
+              exit 1
+            fi
+            if [[ "$PRERELEASE_TOKEN" != "dev" ]]; then
+              echo "main branch requires prerelease_token=dev"
+              exit 1
+            fi
+          fi
 
       - name: Bump version
         env:
