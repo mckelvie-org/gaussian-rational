@@ -13,6 +13,7 @@ from importlib.metadata import version as package_version
 from types import NotImplementedType
 from typing import (
     Any,
+    ClassVar,
     Self,
     overload,
     override,
@@ -52,6 +53,7 @@ def format_fraction(
     is_imaginary: bool = False,
     force_sign: bool = False,
     parens_if_fraction: bool = False,
+    imag_char: str = "j",
 ) -> str:
     """Returns a string representation of a real or imaginary Fraction, optionally requiring a sign prefix.
         If force_sign is True, the result will always include a sign, even if the value is positive.
@@ -69,14 +71,14 @@ def format_fraction(
     include_parens = parens_if_fraction and num.denominator != 1
     if is_imaginary:
         if num == 1:
-            n_str = "i"
+            n_str = imag_char
         elif num.denominator == 1:
-            n_str = f"{num.numerator}i"
+            n_str = f"{num.numerator}{imag_char}"
         else:
             if num.numerator == 1:
-                n_str = f"i/{num.denominator}"
+                n_str = f"{imag_char}/{num.denominator}"
             else:
-                n_str = f"{num.numerator}i/{num.denominator}"
+                n_str = f"{num.numerator}{imag_char}/{num.denominator}"
     else:
         n_str = str(num)
     if include_parens:
@@ -95,6 +97,9 @@ class GaussianRational:
     
     # __slots__ keeps instances compact and enforces a fixed attribute set.
     __slots__ = ("a", "b")
+
+    # Default symbol used when formatting imaginary values.
+    default_imag_char: ClassVar[str] = "j"
     
     a: Fraction
     """The rational real part of the number."""
@@ -310,13 +315,16 @@ class GaussianRational:
     def __format__(self, format_spec: str) -> str:
         """Format this value for f-strings and ``format``.
 
-        - Empty format spec uses exact symbolic formatting (``a+bi`` style).
+        - Empty format spec uses exact symbolic formatting (``a+bj`` style).
         - Non-empty specs follow built-in ``complex`` formatting semantics after
-          casting parts to float, with ``j`` replaced by ``i``.
+          casting parts to float, then map ``j`` to ``default_imag_char``.
         """
         if format_spec == "":
             return self.format()
-        return format(complex(self), format_spec).replace("j", "i")
+        c_str = format(complex(self), format_spec)
+        if self.default_imag_char == "j":
+            return c_str
+        return c_str.replace("j", self.default_imag_char)
     
     def __bool__(self) -> bool:
         """Return ``False`` only for the exact numeric zero."""
@@ -371,7 +379,12 @@ class GaussianRational:
         """Returns True if this GaussianRational is exactly 0."""
         return self.a == 0 and self.b == 0
     
-    def format(self, force_sign: bool = False, parens_if_composite: bool = False) -> str:
+    def format(
+        self,
+        force_sign: bool = False,
+        parens_if_composite: bool = False,
+        imag_char: str | None = None,
+    ) -> str:
         """Returns a string representation of this GaussianRational, optionally requiring a sign prefix.
            If the imaginary part is zero, then the real part is output as an ordinary Fraction.
            Otherwise, if the real part is zero, then the imaginary part is output as a Fraction with an included "i".
@@ -384,15 +397,36 @@ class GaussianRational:
            If force_sign is True, the result will always include a leading sign, even if the value is
                parenthesized or the first value is positive.
         """
+        imag_char = self.default_imag_char if imag_char is None else imag_char
         if self.is_real:
-            return format_fraction(self.a, is_imaginary=False, force_sign=force_sign, parens_if_fraction=parens_if_composite)
+            return format_fraction(
+                self.a,
+                is_imaginary=False,
+                force_sign=force_sign,
+                parens_if_fraction=parens_if_composite,
+                imag_char=imag_char,
+            )
         if self.is_imaginary:
-            return format_fraction(self.b, is_imaginary=True, force_sign=force_sign, parens_if_fraction=parens_if_composite)
+            return format_fraction(
+                self.b,
+                is_imaginary=True,
+                force_sign=force_sign,
+                parens_if_fraction=parens_if_composite,
+                imag_char=imag_char,
+            )
         # composite value with both real and imaginary parts. We will format this as "a + bi" or "a - {abs(b)}i", where a and b are the real and imaginary parts.
         if parens_if_composite:
             sign_prefix = "+" if force_sign else ""
-            return f"{sign_prefix}({format_fraction(self.a)}{format_fraction(self.b, force_sign=True, is_imaginary=True)})"
-        return f"{format_fraction(self.a, force_sign=force_sign)}{format_fraction(self.b, force_sign=True, is_imaginary=True)}"
+            return (
+                f"{sign_prefix}("
+                f"{format_fraction(self.a, imag_char=imag_char)}"
+                f"{format_fraction(self.b, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
+                ")"
+            )
+        return (
+            f"{format_fraction(self.a, force_sign=force_sign, imag_char=imag_char)}"
+            f"{format_fraction(self.b, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
+        )
     
     def __str__(self) -> str:
         return self.format()

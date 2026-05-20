@@ -4,7 +4,7 @@ from fractions import Fraction
 
 import pytest
 
-from gaussian_rational import GaussianRational
+from gaussian_rational import GaussianRational, format_fraction
 
 
 def _naive_pow(base: GaussianRational, exponent: int) -> GaussianRational:
@@ -96,13 +96,22 @@ def test_complex_conversion_casts_fraction_parts_to_float() -> None:
 
 def test_format_empty_spec_uses_symbolic_output() -> None:
     value = GaussianRational(Fraction(1, 2), Fraction(-5, 3))
-    assert format(value, "") == "1/2-5i/3"
+    assert format(value, "") == "1/2-5j/3"
 
 
-def test_format_numeric_spec_uses_float_parts_with_i_suffix() -> None:
+def test_format_numeric_spec_uses_float_parts_with_default_imag_suffix() -> None:
     value = GaussianRational(Fraction(1, 2), Fraction(-5, 3))
-    assert format(value, ".2f") == "0.50-1.67i"
-    assert format(value, "+.1f") == "+0.5-1.7i"
+    assert format(value, ".2f") == "0.50-1.67j"
+    assert format(value, "+.1f") == "+0.5-1.7j"
+
+
+def test_format_can_override_imag_char() -> None:
+    value = GaussianRational(Fraction(1, 2), Fraction(-5, 3))
+    assert value.format(imag_char="i") == "1/2-5i/3"
+
+
+def test_format_fraction_can_override_imag_char() -> None:
+    assert format_fraction(Fraction(1, 3), is_imaginary=True, imag_char="i") == "i/3"
 
 
 def test_integer_power() -> None:

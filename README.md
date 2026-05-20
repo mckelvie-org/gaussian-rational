@@ -86,15 +86,17 @@ Accepted component types are `int` and `Fraction`.
 Formatting rules:
 
 - Real-only values print as rational scalars (for example `3`, `-1/2`).
-- Imaginary-only values print with `i` attached (for example `i`, `-2i`,
-  `i/3`, `-5i/7`).
-- Composite values print without spaces as `a+bi` or `a-bi`.
+- Imaginary-only values print with `j` attached by default (for example `j`,
+  `-2j`, `j/3`, `-5j/7`).
+- Composite values print without spaces as `a+bj` or `a-bj` by default.
 - `force_sign=True` adds a leading `+` for non-negative outputs.
 - `parens_if_composite=True` wraps composite outputs in parentheses; for
   non-composite values, rational fractions are parenthesized.
-- For `format(z, spec)`: empty `spec` uses exact symbolic formatting, while
-  non-empty `spec` uses float-based `complex` formatting semantics and prints
-  `i` instead of `j`.
+- `imag_char` can override the symbol per call (for example `imag_char="i"`).
+- `GaussianRational.default_imag_char` sets the class-wide default.
+- For `format(z, spec)`: empty `spec` uses exact symbolic formatting; non-empty
+  `spec` uses float-based `complex` formatting semantics and maps the imaginary
+  symbol to the class default.
 
 Examples:
 
@@ -103,14 +105,15 @@ from fractions import Fraction
 from gaussian_rational import GaussianRational
 
 str(GaussianRational(3, 0))                               # "3"
-str(GaussianRational(0, 1))                               # "i"
-str(GaussianRational(1, -2))                              # "1-2i"
-GaussianRational(1, 2).format(force_sign=True)           # "+1+2i"
+str(GaussianRational(0, 1))                               # "j"
+str(GaussianRational(1, -2))                              # "1-2j"
+GaussianRational(1, 2).format(force_sign=True)           # "+1+2j"
 GaussianRational(Fraction(1, 2), Fraction(1, 3)).format(
     parens_if_composite=True,
-)                                                        # "(1/2+i/3)"
+)                                                        # "(1/2+j/3)"
+GaussianRational(1, 2).format(imag_char="i")            # "1+2i"
 repr(GaussianRational(Fraction(1, 2), Fraction(-3, 4)))  # "GaussianRational(1/2, -3/4)"
-f"{GaussianRational(Fraction(1, 2), Fraction(-5, 3)):.2f}" # "0.50-1.67i"
+f"{GaussianRational(Fraction(1, 2), Fraction(-5, 3)):.2f}" # "0.50-1.67j"
 ```
 
 Note: `repr(...)` is primarily for diagnostics/readability and is not a strict
@@ -181,6 +184,7 @@ rational components.
   Example: `GaussianRational(1, 2) == (1, 2)` is `False`.
 - Hashing is aligned for purely real values so equality/hash stay consistent
   with compatible real scalars.
+- Instance values are immutable and safe to share across threads.
 
 Current intentional limitation:
 
