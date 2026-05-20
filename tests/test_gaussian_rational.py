@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from fractions import Fraction
 
 import pytest
@@ -90,6 +91,19 @@ def test_real_imag_and_conjugate() -> None:
 def test_as_tuple_returns_fraction_components() -> None:
     value = GaussianRational(Fraction(2, 3), Fraction(-5, 7))
     assert value.as_tuple() == (Fraction(2, 3), Fraction(-5, 7))
+
+
+def test_arg_matches_atan2_for_general_value() -> None:
+    value = GaussianRational(Fraction(1, 3), Fraction(-5, 2))
+    assert value.arg() == pytest.approx(math.atan2(-2.5, 1 / 3))
+
+
+def test_arg_handles_axis_aligned_values() -> None:
+    assert GaussianRational(0, 0).arg() == pytest.approx(0.0)
+    assert GaussianRational(1, 0).arg() == pytest.approx(0.0)
+    assert GaussianRational(-1, 0).arg() == pytest.approx(math.pi)
+    assert GaussianRational(0, 1).arg() == pytest.approx(math.pi / 2)
+    assert GaussianRational(0, -1).arg() == pytest.approx(-math.pi / 2)
 
 
 def test_complex_conversion_casts_fraction_parts_to_float() -> None:

@@ -14,10 +14,11 @@ from types import NotImplementedType
 from typing import (
     Any,
     ClassVar,
-    Self,
+    TypeAlias,
     overload,
-    override,
 )
+
+from typing_extensions import Self, override
 
 try:
     __version__ = package_version("gaussian-rational")
@@ -34,7 +35,7 @@ __all__ = [
     "__version__",
 ]
 
-type FractionLike = Fraction | int
+FractionLike: TypeAlias = Fraction | int
 """A value that can be losslessly converted to :class:`Fraction`."""
 
 def upcast_fraction(num: FractionLike) -> Fraction:
@@ -85,7 +86,7 @@ def format_fraction(
         n_str = f"({n_str})"
     return sign_prefix + n_str
 
-type GaussianRationalLike = GaussianRational | tuple[FractionLike, FractionLike] | FractionLike
+GaussianRationalLike: TypeAlias = "GaussianRational | tuple[FractionLike, FractionLike] | FractionLike"
 """A Value that can be upcast to a GaussianRational. This includes GaussianRational values, tuples of the form (real_part, imaginary_part)
      where the parts are FractionLike, and any FractionLike value which is interpreted as a purely real number
      with no imaginary part."""
@@ -351,6 +352,13 @@ class GaussianRational:
     def conjugate(self) -> Self:
         """Return the complex conjugate ``a - bi``."""
         return type(self)(self.a, -self.b)
+
+    def arg(self) -> float:
+        """Return the counterclockwise angle from the positive real axis.
+
+        The result is in radians and follows ``atan2(imag, real)`` semantics.
+        """
+        return math.atan2(float(self.b), float(self.a))
 
     def as_tuple(self) -> tuple[Fraction, Fraction]:
         """Return ``(real, imag)`` as a tuple of Fractions."""

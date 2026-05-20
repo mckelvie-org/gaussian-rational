@@ -3,6 +3,14 @@ name: Release
 on:
   workflow_dispatch:
     inputs:
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        options:
+          - test
+          - prod
+        default: test
       bump:
         description: "Version bump type"
         required: true
@@ -12,6 +20,11 @@ on:
           - minor
           - major
         default: minor
+      prerelease_token:
+        description: "Prerelease token for test channel (alpha, beta, rc, dev)"
+        required: false
+        type: string
+        default: rc
 
 jobs:
   release:
@@ -40,17 +53,68 @@ jobs:
           pdm run typecheck
           pdm run test
 
-      - name: Bump version and create tag
+      - name: Bump version
         env:
+          CHANNEL: ${{ github.event.inputs.channel }}
           BUMP: ${{ github.event.inputs.bump }}
+          PRERELEASE_TOKEN: ${{ github.event.inputs.prerelease_token }}
         run: |
-          case "$BUMP" in
-            patch) pdm run release-patch ;;
-            minor) pdm run release-minor ;;
-            major) pdm run release-major ;;
-            *) echo "Unsupported bump: $BUMP"; exit 1 ;;
-          esac
+          BUMP_FLAG="--$BUMP"
 
-      - name: Push release commit and tag
+          if [[ "$CHANNEL" == "test" ]]; then
+            python -m semantic_release version \
+              "$BUMP_FLAG" \
+              --as-prerelease \
+              --prerelease-token "$PRERELEASE_TOKEN" \
+              --skip-build \
+              --no-vcs-release \
+              --no-push \
+              --no-tag
+          elif [[ "$CHANNEL" == "prod" ]]; then
+            python -m semantic_release version \
+              "$BUMP_FLAG" \
+              --skip-build \
+              --no-vcs-release \
+              --no-push \
+              --no-tag
+          else
+            echo "Unsupported channel: $CHANNEL"
+            exit 1
+          fi
+
+      - name: Create channel tag
+        env:
+          CHANNEL: ${{ github.event.inputs.channel }}
         run: |
-          git push --follow-tags
+          VERSION=$(python - <<'PY'
+          import tomllib
+          with open('pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          print(data['project']['version'])
+          PY
+          )
+
+          if [[ "$CHANNEL" == "test" ]]; then
+            TAG_NAME="test-v$VERSION"
+          else
+            TAG_NAME="v$VERSION"
+          fi
+
+          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag already exists locally: $TAG_NAME"
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: $TAG_NAME"
+            exit 1
+          fi
+
+          git tag "$TAG_NAME"
+
+      - name: Push release commit and channel tag
+        run: |
+          git push origin HEAD
+          git push origin "$TAG_NAME"

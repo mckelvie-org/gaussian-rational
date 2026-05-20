@@ -283,19 +283,27 @@ are intended for controlled release operations.
 
 ### GitHub release workflow (recommended)
 
-- Run the `Release` workflow manually and choose `patch`, `minor`, or `major`.
-- It runs lint/typecheck/tests, bumps version with semantic-release, creates a
-  tag (`vX.Y.Z`), and pushes commit/tag.
-- Tag push triggers the `Publish` workflow.
+Use the `Release` workflow (`workflow_dispatch`) as the single entrypoint.
 
-### Duplicate publish protection
+- `channel=test` creates a prerelease/dev version and tags it as
+  `test-vX.Y.Z<suffix>`.
+- `channel=prod` creates a stable version and tags it as `vX.Y.Z`.
+- `bump` selects `patch`, `minor`, or `major`.
 
-`Publish` includes explicit safeguards:
+The workflow always runs lint, type-check, and tests before bumping.
 
-- Verifies tag version equals `project.version`.
-- Checks PyPI for an existing `gaussian-rational==X.Y.Z` and fails if present.
+### Channel guards and duplicate protection
 
-This prevents accidentally republishing the same version.
+Automated publish workflows enforce lane separation:
+
+- `Publish TestPyPI` (triggered by `test-v*`) requires a prerelease/dev version
+  and publishes only to TestPyPI.
+- `Publish` (triggered by `v*`) requires a stable version and publishes only to
+  PyPI.
+- Both workflows verify tag version equals `project.version`.
+- Both workflows fail if that exact version already exists on the target index.
+
+This prevents accidental cross-lane publishes and version reuse.
 
 ### Build artifacts manually
 
