@@ -215,13 +215,17 @@ def format_fraction(
     return sign_prefix + n_str
 
 GaussianRationalLike: TypeAlias = "GaussianRational | tuple[FractionLike, FractionLike] | FractionLike"
-"""A Value that can be upcast to a GaussianRational. This includes GaussianRational values, tuples of the form (real_part, imaginary_part)
-     where the parts are FractionLike, and any FractionLike value which is interpreted as a purely real number
-     with no imaginary part."""
+"""Value that can be upcast to ``GaussianRational``.
+
+Includes ``GaussianRational`` values, ``(real, imag)`` tuples with
+``FractionLike`` parts, and ``FractionLike`` real scalars interpreted as
+imaginary part ``0``.
+"""
 
 class GaussianRational:
-    """Represents an immutable complex value with rational parts of the form a + bi, where a and b are rational numbers represented as Fractions,
-       and i is the imaginary unit sqrt(-1).
+    """Immutable complex-like value with rational parts ``a + bi``.
+
+    Both ``a`` and ``b`` are stored as :class:`fractions.Fraction`.
     """
     
     # __slots__ keeps instances compact and enforces a fixed attribute set.
@@ -275,12 +279,18 @@ class GaussianRational:
 
         if isinstance(v, str):
             if v2 is not None:
-                raise ValueError("Invalid GaussianRational constructor: if the first argument is a string, the second argument must be None.")
+                raise ValueError(
+                    "Invalid GaussianRational constructor: if the first argument is a "
+                    "string, the second argument must be None."
+                )
             return cls.parse(v)
 
         if isinstance(v, GaussianRational):
             if v2 is not None:
-                raise ValueError("Invalid GaussianRational constructor: if the first argument is a GaussianRational, the second argument must be None.")
+                raise ValueError(
+                    "Invalid GaussianRational constructor: if the first argument is a "
+                    "GaussianRational, the second argument must be None."
+                )
             if isinstance(v, cls):
                 # v is already a GaussianRational of the correct subclass, so we can just return it directly without creating a copy.
                 return v
@@ -297,9 +307,15 @@ class GaussianRational:
         elif isinstance(v, tuple):
             # v is a (real_part, imaginary_part) tuple. v2 must be None in this case.
             if v2 is not None:
-                raise ValueError("Invalid GaussianRational constructor: if the first argument is a tuple, the second argument must be None.")
+                raise ValueError(
+                    "Invalid GaussianRational constructor: if the first argument is a "
+                    "tuple, the second argument must be None."
+                )
             if len(v) != 2:
-                raise ValueError("Invalid GaussianRational constructor: if the first argument is a tuple, it must have length 2.")
+                raise ValueError(
+                    "Invalid GaussianRational constructor: if the first argument is a "
+                    "tuple, it must have length 2."
+                )
             a_raw, b_raw = v
         else:
             # v is FractionLike and represents the real part, and the imaginary part is 0.
@@ -445,7 +461,11 @@ class GaussianRational:
 
     @classmethod
     def _upcast(cls, other: object) -> Self | None:
-        """Helper method that upcasts other to cls type. Returns None if NotImplemented should be returned."""
+        """Upcast ``other`` to ``cls`` when supported.
+
+        Returns ``None`` when arithmetic dunder methods should propagate
+        ``NotImplemented``.
+        """
         if isinstance(other, cls):
             return other
         if isinstance(other, (GaussianRational, tuple, Fraction, int)):
@@ -551,9 +571,12 @@ class GaussianRational:
     @overload  # type: ignore[misc]
     def __pow__(self, other: int) -> Self: ...
     def __pow__(self, other: object) -> Self | NotImplementedType:
-        """Raises this GaussianRational to the power of other, where other is an integer, returning a new GaussianRational representing the result.
-           Negative powers are supported, in which case the result is 1 / (this GaussianRational raised to the power of -other).
-           The result is computed using recursive squaring; complexity is O(log2(abs(n))) and stack depth grows to log2(abs(n))."""
+        """Raise this value to an integer power.
+
+        Negative powers are supported via reciprocal. The implementation uses
+        recursive exponentiation by squaring, with time complexity
+        ``O(log2(abs(n)))`` and recursion depth ``log2(abs(n))``.
+        """
         if not isinstance(other, int):
             return NotImplemented
         if other < 0:
@@ -696,7 +719,8 @@ class GaussianRational:
                 parens_if_fraction=parens_if_composite,
                 imag_char=imag_char,
             )
-        # composite value with both real and imaginary parts. We will format this as "a + bi" or "a - {abs(b)}i", where a and b are the real and imaginary parts.
+        # Composite value with both real and imaginary parts: format as
+        # "a+bi" or "a-{abs(b)}i".
         if parens_if_composite:
             sign_prefix = "+" if force_sign else ""
             return (

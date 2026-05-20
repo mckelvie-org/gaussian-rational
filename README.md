@@ -30,12 +30,13 @@ from gaussian_rational import GaussianRational
 z = GaussianRational(Fraction(1, 3), Fraction(2, 5))
 w = GaussianRational(2, -1)
 
-print(z + w)          # 7/3-3/5i
-print(z * w)          # 16/15+7/15i
-print(z / w)          # 4/15+1/3i
-print(z.conjugate())  # 1/3-2/5i
+print(z + w)          # 7/3-3/5j
+print(z * w)          # 16/15+7/15j
+print(z / w)          # 4/15+1/3j
+print(z.conjugate())  # 1/3-2/5j
 print(z.real, z.imag) # Fraction(1, 3) Fraction(2, 5)
 print(complex(z))     # complex(float(real), float(imag))
+print(z.arg())        # atan2(float(imag), float(real))
 ```
 
 ## Construction
@@ -50,6 +51,7 @@ GaussianRational(3, 4)                          # a=3, b=4
 GaussianRational((Fraction(1, 2), Fraction(2))) # tuple input
 GaussianRational(5)                             # purely real, imag=0
 GaussianRational(GaussianRational(1, 2))        # identity/upcast
+GaussianRational("1/2+2j")                      # string parse via GaussianRational.parse
 ```
 
 Accepted component types are `int` and `Fraction`.
@@ -68,10 +70,12 @@ Accepted component types are `int` and `Fraction`.
 
 - `real`, `imag` (aliasing internal components)
 - `conjugate()`
+- `arg()` for phase angle in radians (`atan2(imag, real)` semantics)
 - `as_tuple()` for explicit `(real, imag)` tuple conversion
 - `abs_squared()` for exact norm-squared as `Fraction`
 - predicates: `is_real`, `is_imaginary`, `is_zero_or_imaginary`,
   `is_composite`, `is_zero`
+- parsing: `GaussianRational.parse(...)`
 - formatting: `format(...)`, plus `str(...)` and `repr(...)`
 
 If you want deterministic ordering in your own code, sort explicitly with
@@ -126,6 +130,31 @@ f"{GaussianRational(Fraction(1, 2), Fraction(-5, 3)):.2f}" # "0.50-1.67j"
 
 Note: `repr(...)` is primarily for diagnostics/readability and is not a strict
 round-trip representation for fractional components.
+
+## Parsing String Literals
+
+`GaussianRational.parse` parses symbolic literals and is also used by
+`GaussianRational("...")`.
+
+```python
+from fractions import Fraction
+from gaussian_rational import GaussianRational
+
+GaussianRational.parse("1+2j")                 # GaussianRational(1, 2)
+GaussianRational.parse("(2/3)j")               # GaussianRational(0, Fraction(2, 3))
+GaussianRational.parse("2j/3")                 # GaussianRational(0, Fraction(2, 3))
+GaussianRational.parse(" 1/2 + 3 i ", imag_char=("i", "j"))
+GaussianRational.parse("2/3j", interpret_slash_j_as_j_slash=True)
+```
+
+Parsing notes:
+
+- Embedded spaces are ignored.
+- `imag_char` accepts a single character or a tuple of aliases.
+- By default, ambiguous `2/3j` is rejected.
+- Set `interpret_slash_j_as_j_slash=True` to interpret `2/3j` as `2j/3`.
+- `GaussianRationalLike` intentionally does not include `str`, so arithmetic
+  dunder upcasting does not implicitly treat arbitrary strings as numeric.
 
 ## Examples
 
@@ -331,7 +360,7 @@ python -m pip install \
 
 ## Supported Python Versions
 
-- Python 3.12+
+- Python 3.10+
 
 ## License
 
