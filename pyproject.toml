@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "gaussian-rational"
-version = "0.1.0"
+version = "1.0.0-rc.1"
 description = "Exact complex-like scalars with rational real and imaginary parts."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [
   { name = "Sam McKelvie", email = "dev@emckelvie.org" },
 ]
-keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric", "exact", "imaginary", "rational", "scalar", "gaussian", "arithmetic"],
+keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric", "exact", "imaginary", "rational", "scalar", "gaussian", "arithmetic"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
