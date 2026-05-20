@@ -7,6 +7,7 @@ The :class:`GaussianRational` type represents values of the form ``a + bi`` wher
 from __future__ import annotations
 
 import math
+import re
 from fractions import Fraction
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -48,6 +49,133 @@ def upcast_fraction(num: FractionLike) -> Fraction:
             raise TypeError(f"upcast_fraction: Value must be a Fraction or int, got {type(num)}.")
         num = Fraction(num)
     return num
+
+
+def _strip_wrapping_parens(text: str) -> str:
+    """Strip balanced outer parentheses from a token.
+
+    Parameters
+    ----------
+    text:
+        Input token that may be wrapped in one or more balanced outer
+        parenthesis layers.
+
+    Returns
+    -------
+    str
+        ``text`` with removable outer parenthesis layers stripped.
+    """
+    s = text
+    while len(s) >= 2 and s[0] == "(" and s[-1] == ")":
+        depth = 0
+        balanced = True
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    balanced = False
+                    break
+            if depth == 0 and i != len(s) - 1:
+                balanced = False
+                break
+        if not balanced or depth != 0:
+            break
+        s = s[1:-1]
+    return s
+
+
+def _split_additive_terms(expr: str) -> list[str]:
+    """Split an expression into top-level additive terms.
+
+    Parameters
+    ----------
+    expr:
+        Canonicalized additive expression (for example ``"1+2j-3/4"``).
+
+    Returns
+    -------
+    list[str]
+        A list of signed terms preserving order.
+
+    Raises
+    ------
+    ValueError
+        If parentheses are unbalanced.
+    """
+    terms: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(expr):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                raise ValueError(f"Unbalanced ')' in expression: {expr!r}")
+        elif ch in "+-" and depth == 0 and i > 0:
+            terms.append(expr[start:i])
+            start = i
+    if depth != 0:
+        raise ValueError(f"Unbalanced '(' in expression: {expr!r}")
+    terms.append(expr[start:])
+    return terms
+
+
+def _parse_integer_token(token: str) -> int:
+    """Parse an integer token.
+
+    Parameters
+    ----------
+    token:
+        Token that should represent an integer with optional sign and optional
+        removable outer parentheses.
+
+    Returns
+    -------
+    int
+        Parsed integer value.
+
+    Raises
+    ------
+    ValueError
+        If ``token`` is not a valid integer literal.
+    """
+    token = _strip_wrapping_parens(token)
+    if not re.fullmatch(r"[+-]?\d+", token):
+        raise ValueError(f"Invalid integer token: {token!r}")
+    return int(token)
+
+
+def _parse_fraction_token(token: str) -> Fraction:
+    """Parse a rational token into :class:`Fraction`.
+
+    Parameters
+    ----------
+    token:
+        Token that should represent ``int`` or ``int/int`` with optional sign.
+        Sign may appear outside parentheses (for example ``"-(2/3)"``).
+
+    Returns
+    -------
+    Fraction
+        Parsed rational value.
+
+    Raises
+    ------
+    ValueError
+        If ``token`` is not a supported rational literal.
+    """
+    sign = ""
+    if token.startswith(("+", "-")):
+        sign = token[0]
+        token = token[1:]
+    token = _strip_wrapping_parens(token)
+    token = sign + token
+    if not re.fullmatch(r"[+-]?\d+(?:/\d+)?", token):
+        raise ValueError(f"Invalid fraction token: {token!r}")
+    return Fraction(token)
 
 def format_fraction(
     num: FractionLike,
@@ -114,18 +242,41 @@ class GaussianRational:
 
     def __delattr__(self, name: str) -> None:
         raise AttributeError(f"'{self.__class__.__name__}' object is immutable")
-    
-    def __new__(cls, v: GaussianRationalLike, v2: FractionLike | None = None) -> Self:
-        """Normalizing constructor for GaussianRational. Supports any of the following forms of input:
-           - GaussianRational(a, b) where a and b are Fractions or ints. This is the standard form of input.
-           - GaussianRational((a, b)) where a and b are Fractions or ints. This is an alternative form of input that allows the
-             real and imaginary parts to be specified as a tuple.
-           - GaussianRational(a) where a is a Fraction or int. This is a shorthand form of input that allows a purely real number
-             to be specified without needing to include an imaginary part of 0.
-           - GaussianRational(v) where v is a GaussianRational. This is an identity constructor that is included to simplify upcasting.
+
+    def __new__(cls, v: GaussianRationalLike | str, v2: FractionLike | None = None) -> Self:
+        """Create an immutable ``GaussianRational`` from normalized inputs.
+
+        Parameters
+        ----------
+        v:
+            Primary value to construct from. Accepted forms are:
+            ``GaussianRational`` (identity/upcast), ``(real, imag)`` tuple,
+            ``FractionLike`` real scalar, or ``str`` parseable by
+            :meth:`GaussianRational.parse`.
+        v2:
+            Optional imaginary component used only when ``v`` is a real scalar.
+
+        Returns
+        -------
+        Self
+            Constructed immutable value.
+
+        Raises
+        ------
+        ValueError
+            If an invalid parameter combination is provided (for example,
+            tuple/string input with non-``None`` ``v2``).
+        TypeError
+            If scalar components are not ``int`` or ``Fraction`` after
+            normalization.
         """
         a_raw: FractionLike
         b_raw: FractionLike
+
+        if isinstance(v, str):
+            if v2 is not None:
+                raise ValueError("Invalid GaussianRational constructor: if the first argument is a string, the second argument must be None.")
+            return cls.parse(v)
 
         if isinstance(v, GaussianRational):
             if v2 is not None:
@@ -134,6 +285,7 @@ class GaussianRational:
                 # v is already a GaussianRational of the correct subclass, so we can just return it directly without creating a copy.
                 return v
             # Fall through for cross-casting from a GaussianRational of a different subclass.
+
         self = super().__new__(cls)
         if isinstance(v, GaussianRational):
             # This is the case where v is a GaussianRational but not of subclass cls.
@@ -157,11 +309,129 @@ class GaussianRational:
         # upcast a and b to Fractions.
         a = upcast_fraction(a_raw)
         b = upcast_fraction(b_raw)
-        
+
         # Set the attributes using object.__setattr__ to bypass the immutability enforcement in __setattr__.
         object.__setattr__(self, "a", a)
         object.__setattr__(self, "b", b)
         return self
+
+    @classmethod
+    def parse(
+        cls,
+        value: str,
+        imag_char: str | tuple[str, ...] | None = None,
+        *,
+        interpret_slash_j_as_j_slash: bool = False,
+    ) -> Self:
+        """Parse a ``GaussianRational`` from a literal string.
+
+        Parameters
+        ----------
+        value:
+            Input literal to parse. Embedded whitespace is ignored.
+        imag_char:
+            Imaginary-unit character(s) accepted in ``value``. If ``None``, the
+            class default ``default_imag_char`` is used. Pass a single-character
+            string (for example ``"j"``) or a tuple of single-character aliases
+            (for example ``("i", "j")``).
+        interpret_slash_j_as_j_slash:
+            If ``False`` (default), ambiguous forms like ``"2/3j"`` are
+            rejected. If ``True``, they are interpreted as ``"2j/3"``.
+
+        Returns
+        -------
+        Self
+            Parsed ``GaussianRational`` value.
+
+        Raises
+        ------
+        TypeError
+            If ``value`` is not a string.
+        ValueError
+            If ``value`` cannot be parsed under the chosen options.
+
+        Notes
+        -----
+        Accepted syntax includes values produced by :meth:`format`,
+        ``complex``-style integer-part forms, parenthesized forms such as
+        ``"(2/3)j"``, and ``"aj/b"`` forms.
+        """
+        if not isinstance(value, str):
+            raise TypeError(f"parse expects str, got {type(value)}")
+
+        imag_chars: tuple[str, ...]
+        if imag_char is None:
+            imag_chars = (cls.default_imag_char,)
+        elif isinstance(imag_char, str):
+            imag_chars = (imag_char,)
+        else:
+            imag_chars = imag_char
+
+        if len(imag_chars) == 0 or any(len(ch) != 1 for ch in imag_chars):
+            raise ValueError("imag_char must be a single character or tuple of single characters")
+
+        text = "".join(value.split())
+        if text == "":
+            raise ValueError("Cannot parse empty GaussianRational string")
+        text = _strip_wrapping_parens(text)
+
+        allowed_chars = set("0123456789+-/()") | set(imag_chars)
+        bad_chars = sorted({ch for ch in text if ch not in allowed_chars})
+        if bad_chars:
+            raise ValueError(f"Unsupported characters in GaussianRational string: {''.join(bad_chars)!r}")
+
+        canonical = text
+        for ch in imag_chars:
+            canonical = canonical.replace(ch, "j")
+
+        terms = _split_additive_terms(canonical)
+        real = Fraction(0)
+        imag = Fraction(0)
+
+        for raw_term in terms:
+            if raw_term in ("", "+", "-"):
+                raise ValueError(f"Invalid term in GaussianRational string: {raw_term!r}")
+
+            term = _strip_wrapping_parens(raw_term)
+            j_count = term.count("j")
+            if j_count == 0:
+                real += _parse_fraction_token(term)
+                continue
+            if j_count != 1:
+                raise ValueError(f"Invalid imaginary term: {raw_term!r}")
+
+            if "j/" in term:
+                j_pos = term.index("j")
+                left = term[:j_pos]
+                right = term[j_pos + 2 :]
+                if right == "":
+                    raise ValueError(f"Missing denominator in imaginary term: {raw_term!r}")
+
+                if left in ("", "+", "-"):
+                    left_coeff = Fraction(-1 if left == "-" else 1)
+                else:
+                    left_coeff = _parse_fraction_token(left)
+                imag += left_coeff / _parse_integer_token(right)
+                continue
+
+            if not term.endswith("j"):
+                raise ValueError(f"Invalid imaginary term: {raw_term!r}")
+
+            left = term[:-1]
+            if left in ("", "+", "-"):
+                imag += Fraction(-1 if left == "-" else 1)
+                continue
+
+            if "/" in left:
+                unsigned_left = left[1:] if left.startswith(("+", "-")) else left
+                wrapped = unsigned_left.startswith("(") and unsigned_left.endswith(")")
+                if not wrapped and not interpret_slash_j_as_j_slash:
+                    raise ValueError(
+                        f"Ambiguous fraction-imaginary term {raw_term!r}; use '(a/b)j', 'aj/b', or set interpret_slash_j_as_j_slash=True"
+                    )
+            imag += _parse_fraction_token(left)
+
+        return cls(real, imag)
     
     def __hash__(self) -> int:
         """Return a hash consistent with numeric equality.

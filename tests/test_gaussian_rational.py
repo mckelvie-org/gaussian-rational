@@ -113,6 +113,48 @@ def test_complex_conversion_casts_fraction_parts_to_float() -> None:
     assert c_value.imag == float(Fraction(-5, 2))
 
 
+def test_parse_accepts_format_roundtrip_default() -> None:
+    value = GaussianRational(Fraction(2, 3), Fraction(-5, 7))
+    assert GaussianRational.parse(value.format()) == value
+
+
+def test_parse_accepts_imag_char_tuple_and_spaces() -> None:
+    assert GaussianRational.parse(" 1/2 + 3 i ", imag_char=("i", "j")) == GaussianRational(
+        Fraction(1, 2),
+        3,
+    )
+    assert GaussianRational.parse("( 1/2 - j/3 )", imag_char=("i", "j")) == GaussianRational(
+        Fraction(1, 2),
+        Fraction(-1, 3),
+    )
+
+
+def test_parse_accepts_parenthesized_fraction_imag() -> None:
+    assert GaussianRational.parse("(2/3)j") == GaussianRational(0, Fraction(2, 3))
+    assert GaussianRational.parse("-(2/3)j") == GaussianRational(0, Fraction(-2, 3))
+
+
+def test_parse_optionally_accepts_slash_before_imag() -> None:
+    with pytest.raises(ValueError):
+        GaussianRational.parse("2/3j")
+    assert GaussianRational.parse("2/3j", interpret_slash_j_as_j_slash=True) == GaussianRational(
+        0,
+        Fraction(2, 3),
+    )
+
+
+def test_parse_accepts_complex_style_with_integer_parts() -> None:
+    assert GaussianRational.parse("1+2j") == GaussianRational(1, 2)
+    assert GaussianRational.parse("2j+1") == GaussianRational(1, 2)
+    assert GaussianRational.parse("(1-2j)") == GaussianRational(1, -2)
+
+
+def test_constructor_accepts_string_and_uses_parse_defaults() -> None:
+    assert GaussianRational("1/2+3j") == GaussianRational(Fraction(1, 2), 3)
+    with pytest.raises(ValueError):
+        GaussianRational("1+2j", 0)
+
+
 def test_format_empty_spec_uses_symbolic_output() -> None:
     value = GaussianRational(Fraction(1, 2), Fraction(-5, 3))
     assert format(value, "") == "1/2-5j/3"
