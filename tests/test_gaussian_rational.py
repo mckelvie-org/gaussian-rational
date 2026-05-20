@@ -87,6 +87,11 @@ def test_real_imag_and_conjugate() -> None:
     assert value.conjugate() == GaussianRational(Fraction(2, 3), Fraction(5, 7))
 
 
+def test_as_tuple_returns_fraction_components() -> None:
+    value = GaussianRational(Fraction(2, 3), Fraction(-5, 7))
+    assert value.as_tuple() == (Fraction(2, 3), Fraction(-5, 7))
+
+
 def test_complex_conversion_casts_fraction_parts_to_float() -> None:
     value = GaussianRational(Fraction(1, 3), Fraction(-5, 2))
     c_value = complex(value)

@@ -351,6 +351,10 @@ class GaussianRational:
     def conjugate(self) -> Self:
         """Return the complex conjugate ``a - bi``."""
         return type(self)(self.a, -self.b)
+
+    def as_tuple(self) -> tuple[Fraction, Fraction]:
+        """Return ``(real, imag)`` as a tuple of Fractions."""
+        return (self.a, self.b)
     
     @property
     def is_real(self) -> bool:

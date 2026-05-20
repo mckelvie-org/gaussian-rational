@@ -68,10 +68,18 @@ Accepted component types are `int` and `Fraction`.
 
 - `real`, `imag` (aliasing internal components)
 - `conjugate()`
+- `as_tuple()` for explicit `(real, imag)` tuple conversion
 - `abs_squared()` for exact norm-squared as `Fraction`
 - predicates: `is_real`, `is_imaginary`, `is_zero_or_imaginary`,
   `is_composite`, `is_zero`
 - formatting: `format(...)`, plus `str(...)` and `repr(...)`
+
+If you want deterministic ordering in your own code, sort explicitly with
+`as_tuple()`:
+
+```python
+sorted_values = sorted(values, key=lambda z: z.as_tuple())
+```
 
 ## String Formatting Conventions
 
