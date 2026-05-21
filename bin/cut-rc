@@ -18,10 +18,14 @@ if [[ "$AHEAD" -gt 0 ]]; then
 fi
 
 eval "$(python - <<'PY'
-import re, subprocess, sys, tomllib
+import re, subprocess, sys
 
-with open("pyproject.toml", "rb") as f:
-    current = tomllib.load(f)["project"]["version"]
+with open("pyproject.toml") as f:
+    text = f.read()
+vm = re.search(r'^version\s*=\s*"([^"]*)"', text, re.MULTILINE)
+if not vm:
+    sys.exit("version= line not found in pyproject.toml")
+current = vm.group(1)
 
 m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)-dev\.(\d+)", current)
 if not m:

@@ -12,14 +12,18 @@ set -euo pipefail
 BUMP_TYPE="${1:-dev}"
 
 python - "$BUMP_TYPE" <<'PY'
-import re, sys, tomllib
+import re, sys
 
 bump_type = sys.argv[1]
 if bump_type not in ("dev", "patch", "minor", "major"):
     sys.exit(f"usage: bump-dev [dev|patch|minor|major]")
 
-with open("pyproject.toml", "rb") as f:
-    current = tomllib.load(f)["project"]["version"]
+with open("pyproject.toml") as f:
+    text = f.read()
+vm = re.search(r'^version\s*=\s*"([^"]*)"', text, re.MULTILINE)
+if not vm:
+    sys.exit("version= line not found in pyproject.toml")
+current = vm.group(1)
 
 m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)-dev\.(\d+)", current)
 if not m:
@@ -31,8 +35,6 @@ elif bump_type == "patch": new = f"{x}.{y}.{z + 1}-dev.1"
 elif bump_type == "minor": new = f"{x}.{y + 1}.0-dev.1"
 elif bump_type == "major": new = f"{x + 1}.0.0-dev.1"
 
-with open("pyproject.toml") as f:
-    text = f.read()
 updated = re.sub(
     r'^(version\s*=\s*")[^"]*(")',
     rf'\g<1>{new}\2',
