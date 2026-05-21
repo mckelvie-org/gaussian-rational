@@ -93,7 +93,7 @@ jobs:
           pm = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", prod)
           if not pm:
               sys.exit(f"Cannot parse prod version from tag: {prod_tag!r}")
-          px, py_ = int(pm.group(1)), int(pm.group(2))
+          px, py_, pz = int(pm.group(1)), int(pm.group(2)), int(pm.group(3))
 
           with open("pyproject.toml", "rb") as f:
               current = tomllib.load(f)["project"]["version"]
@@ -103,12 +103,13 @@ jobs:
               print(f"Main version {current!r} is not a -dev version — skipping auto-bump")
               sys.exit(0)
 
-          mx, my = int(m.group(1)), int(m.group(2))
-          if (mx, my) > (px, py_):
+          mx, my, mz = int(m.group(1)), int(m.group(2)), int(m.group(3))
+          if (mx, my, mz) > (px, py_, pz):
               print(f"Main {current!r} is already ahead of {prod} — skipping auto-bump")
               sys.exit(0)
 
-          new = f"{px}.{py_ + 1}.0-dev.1"
+          # Patch bump: minimum increment to make main numerically > prod.
+          new = f"{px}.{py_}.{pz + 1}-dev.1"
           with open("pyproject.toml") as f:
               text = f.read()
           updated = re.sub(
@@ -135,4 +136,11 @@ jobs:
           PROD_VERSION="${GITHUB_REF_NAME#v}"
           git add pyproject.toml
           git commit -m "chore: bump main to ${NEW_VERSION} after ${PROD_VERSION} release"
-          git push origin main
+
+          # A concurrent push to main between our fetch and now would cause a
+          # non-fast-forward failure.  Rebase once and retry before giving up.
+          git push origin main || {
+            git fetch origin main
+            git rebase origin/main
+            git push origin main
+          }
