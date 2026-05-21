@@ -2,6 +2,7 @@
 # Cut an rc/<x.y.z> branch from the current HEAD of main.
 # Computes the next rc counter from existing tags, sets pyproject.toml to
 # X.Y.Z-rc.N, commits, and pushes — triggering publish-test.yml.
+# Uses a git worktree so the dev's working directory is never modified.
 set -euo pipefail
 
 if [[ "$(git branch --show-current)" != "main" ]]; then
@@ -34,21 +35,29 @@ ns = [int(re.search(r"rc\.(\d+)$", t).group(1)) for t in tags if re.search(r"rc\
 n = max(ns) + 1 if ns else 1
 new = f"{xyz}-rc.{n}"
 
-with open("pyproject.toml") as f:
-    text = f.read()
-updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re.MULTILINE)
-assert updated != text, "version= line not found in pyproject.toml"
-with open("pyproject.toml", "w") as f:
-    f.write(updated)
-
 print(f"version: {current} → {new}", file=sys.stderr)
 print(f"RC_VERSION={new}")
 print(f"RC_BRANCH=rc/{xyz}")
 PY
 )"
 
-git checkout -B "$RC_BRANCH"
-git add pyproject.toml
-git commit -m "chore: release $RC_VERSION"
-git push origin "$RC_BRANCH"
-git checkout main
+TMP=$(mktemp -d)
+trap 'git worktree remove --force "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
+
+git worktree add --detach "$TMP" HEAD
+
+python - "$RC_VERSION" "$TMP/pyproject.toml" <<'PY'
+import re, sys
+new, path = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    text = f.read()
+updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re.MULTILINE)
+assert updated != text, "version= line not found in pyproject.toml"
+with open(path, "w") as f:
+    f.write(updated)
+PY
+
+git -C "$TMP" checkout -b "$RC_BRANCH"
+git -C "$TMP" add pyproject.toml
+git -C "$TMP" commit -m "chore: release $RC_VERSION"
+git -C "$TMP" push origin "$RC_BRANCH"

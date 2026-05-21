@@ -2,6 +2,7 @@
 # Promote the current rc/<x.y.z> branch to prod/<x.y.z>.
 # Strips the rc qualifier from pyproject.toml, commits, and pushes —
 # triggering publish.yml.
+# Uses a git worktree so the dev's working directory is never modified.
 set -euo pipefail
 
 BRANCH=$(git branch --show-current)
@@ -29,20 +30,29 @@ if not m:
 
 new = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
 
-with open("pyproject.toml") as f:
-    text = f.read()
-updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re.MULTILINE)
-assert updated != text, "version= line not found in pyproject.toml"
-with open("pyproject.toml", "w") as f:
-    f.write(updated)
-
 print(f"version: {current} → {new}", file=sys.stderr)
 print(f"PROD_VERSION={new}")
 print(f"PROD_BRANCH=prod/{new}")
 PY
 )"
 
-git checkout -B "$PROD_BRANCH"
-git add pyproject.toml
-git commit -m "chore: release $PROD_VERSION"
-git push origin "$PROD_BRANCH"
+TMP=$(mktemp -d)
+trap 'git worktree remove --force "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
+
+git worktree add --detach "$TMP" HEAD
+
+python - "$PROD_VERSION" "$TMP/pyproject.toml" <<'PY'
+import re, sys
+new, path = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    text = f.read()
+updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re.MULTILINE)
+assert updated != text, "version= line not found in pyproject.toml"
+with open(path, "w") as f:
+    f.write(updated)
+PY
+
+git -C "$TMP" checkout -b "$PROD_BRANCH"
+git -C "$TMP" add pyproject.toml
+git -C "$TMP" commit -m "chore: release $PROD_VERSION"
+git -C "$TMP" push origin "$PROD_BRANCH"
