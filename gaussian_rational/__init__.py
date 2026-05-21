@@ -1,7 +1,14 @@
 """Exact complex-like scalar with rational real and imaginary parts.
 
-The :class:`GaussianRational` type represents values of the form ``a + bi`` where
-``a`` and ``b`` are :class:`fractions.Fraction` values.
+The :class:`GaussianRational` type represents values of the form ``a + bi``
+where ``a`` and ``b`` are :class:`fractions.Fraction` values, providing exact
+complex arithmetic without floating-point rounding in the components.
+
+Author:
+    Samuel J. McKelvie
+
+License:
+    MIT — see the LICENSE file in the project root for details.
 """
 
 from __future__ import annotations
@@ -177,6 +184,7 @@ def _parse_fraction_token(token: str) -> Fraction:
         raise ValueError(f"Invalid fraction token: {token!r}")
     return Fraction(token)
 
+
 def format_fraction(
     num: FractionLike,
     is_imaginary: bool = False,
@@ -184,12 +192,27 @@ def format_fraction(
     parens_if_fraction: bool = False,
     imag_char: str = "j",
 ) -> str:
-    """Returns a string representation of a real or imaginary Fraction, optionally requiring a sign prefix.
-        If force_sign is True, the result will always include a sign, even if the value is positive.
-        If the value is a an imaginary fraction, "i" will be included in the numerator portion of the fraction.
-        If parens_if_fraction is True, the result after the sign (if any) will be enclosed in parentheses if it is a fraction
-            (i.e. if the denominator is not 1). This is useful for ensuring correct operation ordering and readability when the result
-            is used as the coefficient in an expression term.
+    """Format a real or imaginary :class:`Fraction` value as a string.
+
+    Parameters
+    ----------
+    num:
+        The rational value to format.
+    is_imaginary:
+        If ``True``, attach ``imag_char`` to the numerator to produce an
+        imaginary term (for example ``"3j"`` or ``"j/2"``).
+    force_sign:
+        If ``True``, always include a leading sign even for positive values.
+    parens_if_fraction:
+        If ``True``, wrap the output in parentheses when the denominator is
+        not 1.  Useful for coefficient terms inside larger expressions.
+    imag_char:
+        Symbol used for the imaginary unit.
+
+    Returns
+    -------
+    str
+        Formatted string.
     """
     num = upcast_fraction(num)
     if num >= 0:
@@ -214,6 +237,7 @@ def format_fraction(
         n_str = f"({n_str})"
     return sign_prefix + n_str
 
+
 GaussianRationalLike: TypeAlias = "GaussianRational | tuple[FractionLike, FractionLike] | FractionLike"
 """Value that can be upcast to ``GaussianRational``.
 
@@ -221,6 +245,7 @@ Includes ``GaussianRational`` values, ``(real, imag)`` tuples with
 ``FractionLike`` parts, and ``FractionLike`` real scalars interpreted as
 imaginary part ``0``.
 """
+
 
 class GaussianRational:
     """Immutable complex-like value with rational parts ``a + bi``.
@@ -595,15 +620,15 @@ class GaussianRational:
         return result
     
     def abs_squared(self) -> Fraction:
-        """Returns the squared absolute value of this GaussianRational as a Fraction, which is a^2 + b^2."""
+        """Return the exact squared magnitude ``a² + b²`` as a :class:`Fraction`."""
         return self.a * self.a + self.b * self.b
 
     def __abs__(self) -> float:
-        """Returns the absolute value of this GaussianRational (its length) as a floating point value, which is sqrt(a^2 + b^2)."""
+        """Return the magnitude ``sqrt(a² + b²)`` as a :class:`float`."""
         return math.sqrt(float(self.abs_squared()))
 
     def __complex__(self) -> complex:
-        """Return a built-in complex value by casting both parts to float."""
+        """Return a :class:`complex` value by casting both parts to :class:`float`."""
         return complex(float(self.a), float(self.b))
 
     def __format__(self, format_spec: str) -> str:
@@ -659,29 +684,27 @@ class GaussianRational:
     
     @property
     def is_real(self) -> bool:
-        """Returns True if this GaussianRational is purely real (i.e. has no imaginary part), or False otherwise."""
+        """``True`` if the imaginary part is zero."""
         return self.b == 0
-    
+
     @property
     def is_imaginary(self) -> bool:
-        """Returns True if this GaussianRational is purely imaginary (i.e. has an imaginary part but no real part), or False otherwise.
-           Note that this does not include the number 0, which could be processed as real or imaginary, but by definition is real."""
+        """``True`` if the real part is zero and the imaginary part is nonzero."""
         return self.a == 0 and self.b != 0
-    
+
     @property
     def is_zero_or_imaginary(self) -> bool:
-        """Returns True if this GaussianRational has no real part, or False otherwise.
-           Note that this includes both purely imaginary numbers and the number 0, which has no real or imaginary part."""
+        """``True`` if the real part is zero (includes the value 0 itself)."""
         return self.a == 0
-    
+
     @property
     def is_composite(self) -> bool:
-        """Returns True if this GaussianRational has both a nonzero real part and a nonzero imaginary part, or False otherwise."""
+        """``True`` if both the real and imaginary parts are nonzero."""
         return self.a != 0 and self.b != 0
-    
+
     @property
     def is_zero(self) -> bool:
-        """Returns True if this GaussianRational is exactly 0."""
+        """``True`` if both parts are exactly zero."""
         return self.a == 0 and self.b == 0
     
     def format(
@@ -690,17 +713,25 @@ class GaussianRational:
         parens_if_composite: bool = False,
         imag_char: str | None = None,
     ) -> str:
-        """Returns a string representation of this GaussianRational, optionally requiring a sign prefix.
-           If the imaginary part is zero, then the real part is output as an ordinary Fraction.
-           Otherwise, if the real part is zero, then the imaginary part is output as a Fraction with an included "i".
-           Otherwise, both parts are output in the form "a+bi" or "a-{abs(b)}i", where a and b are the real and imaginary parts.
-           If force_sign is True, the result will always include a leading sign, even if the first value is positive.
-           If parens_if_composite is True and the value has both a real and imaginary part, then the value is enclosed in parentheses
-              and the sign of the composite expression is considered "+" for the purposes of force_sign processing.
-           If parens_if_composite is True and the value does not have both a real and imaginary part, then parens_if_composite
-              is used as parens_if_fraction for the single part that is output.
-           If force_sign is True, the result will always include a leading sign, even if the value is
-               parenthesized or the first value is positive.
+        """Return a symbolic string representation of this value.
+
+        Parameters
+        ----------
+        force_sign:
+            If ``True``, always include a leading sign even for positive values.
+        parens_if_composite:
+            If ``True`` and the value has both real and imaginary parts, wrap
+            the result in parentheses.  For purely real or purely imaginary
+            values, acts as ``parens_if_fraction`` on the single term instead.
+        imag_char:
+            Symbol used for the imaginary unit; defaults to
+            :attr:`default_imag_char`.
+
+        Returns
+        -------
+        str
+            Exact symbolic string, for example ``"1/2-5j/3"`` or
+            ``"(1/2+j/3)"``.
         """
         imag_char = self.default_imag_char if imag_char is None else imag_char
         if self.is_real:
@@ -738,5 +769,7 @@ class GaussianRational:
         return self.format()
     
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.a}, {self.b})"
+        # Subclasses that add state should override format() and parse() to
+        # keep this round-trip eval-safe.
+        return f"{type(self).__name__}({self.format()!r})"
 

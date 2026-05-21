@@ -1,5 +1,10 @@
 # gaussian-rational
 
+[![CI](https://github.com/mckelvie-org/gaussian-rational/actions/workflows/ci.yml/badge.svg)](https://github.com/mckelvie-org/gaussian-rational/actions/workflows/ci.yml)
+[![PyPI version](https://img.shields.io/pypi/v/gaussian-rational.svg)](https://pypi.org/project/gaussian-rational/)
+[![Python versions](https://img.shields.io/pypi/pyversions/gaussian-rational.svg)](https://pypi.org/project/gaussian-rational/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 `gaussian-rational` provides an exact, immutable complex-like scalar where both
 components are rational numbers (`fractions.Fraction`).
 
@@ -9,9 +14,10 @@ floating-point rounding in the real and imaginary parts.
 ## Highlights
 
 - Exact real and imaginary components (`Fraction`-backed).
-- Immutable value type.
+- Immutable value type, safe to share across threads.
 - Complex-style arithmetic (`+`, `-`, `*`, `/`, integer `**`).
 - Compatible real equality/hash behavior for purely real values.
+- Flexible string parsing and formatting.
 - Fully typed (PEP 561, inline annotations).
 
 ## Installation
@@ -30,12 +36,12 @@ from gaussian_rational import GaussianRational
 z = GaussianRational(Fraction(1, 3), Fraction(2, 5))
 w = GaussianRational(2, -1)
 
-print(z + w)          # 7/3-3/5j
-print(z * w)          # 16/15+7/15j
-print(z / w)          # 4/15+1/3j
-print(z.conjugate())  # 1/3-2/5j
+print(z + w)          # 7/3-3j/5
+print(z * w)          # 16/15+7j/15
+print(z / w)          # 4/15+j/3
+print(z.conjugate())  # 1/3-2j/5
 print(z.real, z.imag) # Fraction(1, 3) Fraction(2, 5)
-print(complex(z))     # complex(float(real), float(imag))
+print(complex(z))     # (0.3333333333333333+0.4j)
 print(z.arg())        # atan2(float(imag), float(real))
 ```
 
@@ -47,11 +53,11 @@ print(z.arg())        # atan2(float(imag), float(real))
 from fractions import Fraction
 from gaussian_rational import GaussianRational
 
-GaussianRational(3, 4)                          # a=3, b=4
-GaussianRational((Fraction(1, 2), Fraction(2))) # tuple input
-GaussianRational(5)                             # purely real, imag=0
-GaussianRational(GaussianRational(1, 2))        # identity/upcast
-GaussianRational("1/2+2j")                      # string parse via GaussianRational.parse
+GaussianRational(3, 4)                           # a=3, b=4
+GaussianRational((Fraction(1, 2), Fraction(2)))  # tuple input
+GaussianRational(5)                              # purely real, imag=0
+GaussianRational(GaussianRational(1, 2))         # identity/upcast
+GaussianRational("1/2+2j")                       # string parse
 ```
 
 Accepted component types are `int` and `Fraction`.
@@ -62,53 +68,50 @@ Accepted component types are `int` and `Fraction`.
 
 - `+`, `-`, unary `-`
 - `*`, `/`
-- integer exponentiation `**n` for `n: int`
+- Integer exponentiation `**n` for `n: int`
 - `abs(x)` returns `float`
 - `complex(x)` returns built-in `complex` using `float` casts of both parts
 
 ### Properties and helpers
 
-- `real`, `imag` (aliasing internal components)
-- `conjugate()`
-- `arg()` for phase angle in radians (`atan2(imag, real)` semantics)
-- `as_tuple()` for explicit `(real, imag)` tuple conversion
-- `abs_squared()` for exact norm-squared as `Fraction`
-- predicates: `is_real`, `is_imaginary`, `is_zero_or_imaginary`,
-  `is_composite`, `is_zero`
-- parsing: `GaussianRational.parse(...)`
-- formatting: `format(...)`, plus `str(...)` and `repr(...)`
+- `real`, `imag` — rational components, mirroring `complex`
+- `conjugate()` — complex conjugate `a - bi`
+- `arg()` — phase angle in radians (`atan2(imag, real)`)
+- `as_tuple()` — explicit `(real, imag)` tuple
+- `abs_squared()` — exact norm-squared as `Fraction`
+- Predicates: `is_real`, `is_imaginary`, `is_zero_or_imaginary`, `is_composite`, `is_zero`
+- Parsing: `GaussianRational.parse(...)`
+- Formatting: `format(...)`, `str(...)`, `repr(...)`
 
-If you want deterministic ordering in your own code, sort explicitly with
-`as_tuple()`:
+If you want deterministic ordering, sort explicitly with `as_tuple()`:
 
 ```python
 sorted_values = sorted(values, key=lambda z: z.as_tuple())
 ```
 
-## String Formatting Conventions
+## String Formatting
 
-`GaussianRational` provides three related string surfaces:
+`GaussianRational` provides three string surfaces:
 
-- `str(z)` uses `z.format()`.
-- `z.format(force_sign=False, parens_if_composite=False)` gives configurable
-  display formatting.
-- `format(z, spec)` / f-strings use `__format__`.
-- `repr(z)` returns a diagnostic constructor-style form.
+| Surface | Description |
+|---|---|
+| `str(z)` | Calls `z.format()`. |
+| `z.format(...)` | Configurable exact symbolic output. |
+| `format(z, spec)` / f-strings | Empty spec → symbolic; non-empty spec → float-based `complex` semantics. |
+| `repr(z)` | Eval-safe constructor form, for example `GaussianRational(Fraction(1, 2), 3)`. |
 
 Formatting rules:
 
 - Real-only values print as rational scalars (for example `3`, `-1/2`).
-- Imaginary-only values print with `j` attached by default (for example `j`,
-  `-2j`, `j/3`, `-5j/7`).
-- Composite values print without spaces as `a+bj` or `a-bj` by default.
+- Imaginary-only values print with `j` attached (for example `j`, `-2j`, `j/3`, `-5j/7`).
+- Composite values print as `a+bj` or `a-bj` with no spaces.
 - `force_sign=True` adds a leading `+` for non-negative outputs.
 - `parens_if_composite=True` wraps composite outputs in parentheses; for
-  non-composite values, rational fractions are parenthesized.
-- `imag_char` can override the symbol per call (for example `imag_char="i"`).
+  non-composite values, rational fractions are parenthesized instead.
+- `imag_char` overrides the symbol per call (for example `imag_char="i"`).
 - `GaussianRational.default_imag_char` sets the class-wide default.
-- For `format(z, spec)`: empty `spec` uses exact symbolic formatting; non-empty
-  `spec` uses float-based `complex` formatting semantics and maps the imaginary
-  symbol to the class default.
+- For `format(z, spec)`: non-empty `spec` uses `complex` formatting semantics,
+  mapping the imaginary symbol to the class default.
 
 Examples:
 
@@ -119,17 +122,17 @@ from gaussian_rational import GaussianRational
 str(GaussianRational(3, 0))                               # "3"
 str(GaussianRational(0, 1))                               # "j"
 str(GaussianRational(1, -2))                              # "1-2j"
-GaussianRational(1, 2).format(force_sign=True)           # "+1+2j"
+GaussianRational(1, 2).format(force_sign=True)            # "+1+2j"
 GaussianRational(Fraction(1, 2), Fraction(1, 3)).format(
     parens_if_composite=True,
-)                                                        # "(1/2+j/3)"
-GaussianRational(1, 2).format(imag_char="i")            # "1+2i"
-repr(GaussianRational(Fraction(1, 2), Fraction(-3, 4)))  # "GaussianRational(1/2, -3/4)"
+)                                                         # "(1/2+j/3)"
+GaussianRational(1, 2).format(imag_char="i")              # "1+2i"
+repr(GaussianRational(Fraction(1, 2), Fraction(-3, 4)))   # "GaussianRational(Fraction(1, 2), Fraction(-3, 4))"
 f"{GaussianRational(Fraction(1, 2), Fraction(-5, 3)):.2f}" # "0.50-1.67j"
 ```
 
-Note: `repr(...)` is primarily for diagnostics/readability and is not a strict
-round-trip representation for fractional components.
+`repr(z)` is an eval-safe round-trip given `from fractions import Fraction` and
+`from gaussian_rational import GaussianRational` in scope.
 
 ## Parsing String Literals
 
@@ -151,10 +154,10 @@ Parsing notes:
 
 - Embedded spaces are ignored.
 - `imag_char` accepts a single character or a tuple of aliases.
-- By default, ambiguous `2/3j` is rejected.
-- Set `interpret_slash_j_as_j_slash=True` to interpret `2/3j` as `2j/3`.
-- `GaussianRationalLike` intentionally does not include `str`, so arithmetic
-  dunder upcasting does not implicitly treat arbitrary strings as numeric.
+- By default, ambiguous `2/3j` is rejected; set
+  `interpret_slash_j_as_j_slash=True` to accept it as `2j/3`.
+- `GaussianRationalLike` intentionally excludes `str`, so arithmetic dunder
+  upcasting never treats arbitrary strings as numeric.
 
 ## Examples
 
@@ -173,7 +176,7 @@ print(prod.real)        # Fraction(181, 144)
 print(z.abs_squared())  # Fraction(181, 144)
 ```
 
-### Division remains exact in components
+### Division remains exact
 
 ```python
 from fractions import Fraction
@@ -193,8 +196,8 @@ print(q.imag)  # Fraction(980, 1833)
 from gaussian_rational import GaussianRational
 
 z = GaussianRational(1, 1)
-print(z ** 2)   # 2i
-print(z ** -1)  # 1/2-1/2i
+print(z ** 2)   # 2j
+print(z ** -1)  # 1/2-j/2
 ```
 
 ### Interop with built-in complex
@@ -206,22 +209,22 @@ from gaussian_rational import GaussianRational
 z = GaussianRational(Fraction(1, 3), Fraction(5, 2))
 c = complex(z)
 
-print(c)          # (0.3333333333333333+2.5j)
-print(type(c))    # <class 'complex'>
+print(c)        # (0.3333333333333333+2.5j)
+print(type(c))  # <class 'complex'>
 ```
 
 ## Semantics and Compatibility
 
-`GaussianRational` is designed to feel close to `complex` while preserving exact
-rational components.
+`GaussianRational` is designed to feel close to `complex` while preserving
+exact rational components.
 
 - Truthiness matches numeric convention: only `GaussianRational(0, 0)` is false.
 - Equality accepts `GaussianRational`, `int`, and `Fraction` values.
-- Equality intentionally does not treat tuples as numeric values.
-  Example: `GaussianRational(1, 2) == (1, 2)` is `False`.
-- Hashing is aligned for purely real values so equality/hash stay consistent
+- Equality intentionally does not accept tuples:
+  `GaussianRational(1, 2) == (1, 2)` is `False`.
+- Hashing is aligned for purely real values so equality and hash stay consistent
   with compatible real scalars.
-- Instance values are immutable and safe to share across threads.
+- Instances are immutable and safe to share across threads.
 
 Current intentional limitation:
 
@@ -238,16 +241,16 @@ Public typing aliases:
 
 ## Advanced Usage
 
-### Subclassing notes
+### Subclassing
 
-`GaussianRational` is intentionally immutable and uses `__slots__` for compact
-instances. Subclassing is supported, but there are a few rules to follow:
+`GaussianRational` is immutable and uses `__slots__` for compact instances.
+Subclassing is supported with a few rules:
 
-- Do not assign attributes normally (`self.x = ...`) after construction.
-- If your subclass adds fields, define its own `__slots__`.
-- During construction, use `object.__setattr__` for any subclass fields.
-- Keep arithmetic constructors returning `type(self)(...)` compatible with your
-  subclass constructor signature.
+- Do not assign attributes normally (`self.x = ...`) after construction; use
+  `object.__setattr__` in `__new__` instead.
+- If your subclass adds fields, declare its own `__slots__`.
+- Keep `type(self)(a, b)` compatible with your subclass constructor, since
+  arithmetic results are constructed that way.
 
 Minimal pattern:
 
@@ -264,112 +267,98 @@ class TaggedGaussianRational(GaussianRational):
         return self
 ```
 
-If you do not need extra subclass state, prefer using `GaussianRational`
-directly for simpler semantics.
+Subclass contract for `repr` round-trips:
+
+`__repr__` is implemented as `f"{type(self).__name__}({self.format()!r})"`.
+A subclass that adds state beyond `a` and `b` must override both `format()`
+(to encode that state in the string) and `parse()` (to decode it), so that
+`eval(repr(z))` remains a valid round-trip.
 
 Common pitfalls:
 
-- Forgetting to declare subclass `__slots__`, which can reintroduce a `__dict__`
-  and inconsistent memory behavior.
-- Assigning subclass attributes with normal assignment instead of
-  `object.__setattr__` during `__new__`.
-- Changing constructor semantics so `type(self)(a, b)` no longer works,
-  which can break arithmetic result construction.
-- Adding mutable subclass state while keeping hashing enabled.
-  If mutable fields affect equality, hash behavior can become invalid.
+- Forgetting `__slots__` on the subclass, which reintroduces `__dict__`.
+- Changing constructor semantics so `type(self)(a, b)` no longer works.
+- Adding mutable fields while keeping hashing enabled (invalidates hash
+  contract if mutable fields affect equality).
 
 ## Development
 
 This project uses [PDM](https://pdm-project.org/) for dependency management,
-linting, type checking, testing, and builds.
+linting, type checking, and testing.
 
 ```bash
 pdm install -G dev
-pdm run lint
-pdm run typecheck
-pdm run test
+pdm run lint       # ruff check
+pdm run typecheck  # mypy
+pdm run test       # pytest
 pdm build
 ```
 
 ## Publishing
 
-This project uses a single version source in `pyproject.toml` plus
-`python-semantic-release` automation.
+Releases are managed through GitHub Actions using a three-channel model:
 
-### Local version helpers
+| Channel | Branch | Tag format | Index |
+|---|---|---|---|
+| dev | `main` | — (no publish) | — |
+| rc | `rc/<x.y.z>` | `rc-v<x.y.z>-rc.<n>` | TestPyPI |
+| prod | `prod/<x.y.z>` | `v<x.y.z>` | PyPI |
 
-Use these PDM scripts for explicit SemVer bumps:
+### Version invariant
 
-```bash
-pdm run release-print
-pdm run release-patch
-pdm run release-minor
-pdm run release-major
-```
+`main` always carries `X.Y.Z-dev.N`.  The `x.y.z` portion of any RC or
+production release always matches the commit on `main` from which it was cut —
+only the qualifier suffix changes.
 
-These commands update `project.version`, create a release commit and tag, and
-are intended for controlled release operations.
+### Release workflow
 
-### GitHub release workflow (recommended)
+All release operations go through the **Release** workflow
+(`Actions → Release → Run workflow`):
 
-Use the `Release` workflow (`workflow_dispatch`) as the single entrypoint.
+**`bump-dev`** (run on `main`) — increment the dev version.
 
-- `channel=dev` creates a dev prerelease and tags it as
-  `dev-vX.Y.Z-devN`.
-- `channel=rc` creates a release-candidate prerelease and tags it as
-  `rc-vX.Y.Z-rcN`.
-- `channel=prod` creates a stable production release and tags it as `vX.Y.Z`.
-- `bump` selects `patch`, `minor`, or `major`.
+| `bump_type` | Example |
+|---|---|
+| `dev` | `1.0.0-dev.1` → `1.0.0-dev.2` |
+| `patch` | `1.0.0-dev.2` → `1.0.1-dev.1` |
+| `minor` | `1.0.0-dev.2` → `1.1.0-dev.1` |
+| `major` | `1.0.0-dev.2` → `2.0.0-dev.1` |
 
-The workflow always runs lint, type-check, and tests before bumping.
+**`cut-rc`** (run on `main`) — create a release candidate.
 
-Branch policy:
+Reads `X.Y.Z` from `main`, auto-increments the rc counter from existing tags,
+creates branch `rc/X.Y.Z` and tag `rc-vX.Y.Z-rc.N`, and triggers
+`Publish TestPyPI`.
 
-- `main` is dev-only: only `channel=dev` with `prerelease_token=dev` is
-  allowed.
-- RC/prod releases should be cut from non-`main` release branches.
+**`cut-prod`** (run on `rc/<x.y.z>`) — promote to production.
 
-### Channel guards and duplicate protection
+Creates branch `prod/X.Y.Z` and tag `vX.Y.Z`, which triggers `Publish`.
+After a successful PyPI push, the workflow automatically bumps `main` to
+`X.(Y+1).0-dev.1`.
 
-Automated publish workflows enforce lane separation:
+### Guards
 
-- `Publish TestPyPI` (triggered by `rc-v*`) requires an `rc` prerelease version
-  and publishes only to TestPyPI.
-- `Publish` (triggered by `v*`) requires a stable version and publishes only to
-  PyPI.
-- Both workflows verify tag version equals `project.version`.
-- Both workflows fail if that exact version already exists on the target index.
+Both publish workflows validate that:
 
-This prevents accidental cross-lane publishes and version reuse.
+- The tag version matches `pyproject.toml`'s version.
+- The version format matches the target index (stable for PyPI, `-rc.N` for
+  TestPyPI).
+- The version does not already exist on the target index.
+- Lint, type checks, and tests pass.
 
-### Build artifacts manually
+### Install-path smoke test
 
-```bash
-pdm build
-```
+Use the **Install Smoke Test** workflow to verify an install without publishing
+or bumping a version:
 
-### Install-path testing without publishing or version bump
-
-Use the `Install Smoke Test` workflow (`workflow_dispatch`) with one of:
-
-- `source=github` with `git_ref` (branch/tag/sha) to test install directly from
-  repository path.
-- `source=testpypi` with `version` to test an already-uploaded TestPyPI build.
-
-Local equivalents:
-
-```bash
-python -m pip install "gaussian-rational @ git+https://github.com/<owner>/<repo>.git@<ref>"
-python -m pip install \
-  --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
-  "gaussian-rational==<version>"
-```
+- `source=github` with a `git_ref` — installs directly from the repository.
+- `source=testpypi` with a `version` — installs an already-uploaded TestPyPI
+  build.
 
 ## Supported Python Versions
 
-- Python 3.10+
+Python 3.10 and later.
 
 ## License
 
-MIT. See LICENSE.
+MIT. See [LICENSE](LICENSE).

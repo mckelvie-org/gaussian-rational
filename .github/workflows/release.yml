@@ -1,37 +1,60 @@
 name: Release
 
+# Single entry point for all version management and release branching.
+#
+# Three actions:
+#
+#   bump-dev  — increment the dev version on main (no publish).
+#               Runs on: main
+#
+#   cut-rc    — create an rc/<x.y.z> branch and rc-v<x.y.z>-rc.<n> tag from
+#               main's current X.Y.Z.  Triggers publish-test.yml via the tag.
+#               Runs on: main
+#
+#   cut-prod  — promote the current rc/* branch to a prod/<x.y.z> branch and
+#               v<x.y.z> tag.  Triggers publish.yml via the tag (which also
+#               auto-bumps main after a successful PyPI push).
+#               Runs on: rc/<x.y.z>
+#
+# Version invariants enforced here:
+#   - main always carries X.Y.Z-dev.N
+#   - rc branches always carry X.Y.Z-rc.N  (same X.Y.Z as their main parent)
+#   - prod branches always carry X.Y.Z      (same X.Y.Z as their rc parent)
+
 on:
   workflow_dispatch:
     inputs:
-      channel:
-        description: "Release channel"
+      action:
+        description: >
+          bump-dev: update dev version on main |
+          cut-rc: create RC from main's current version |
+          cut-prod: promote current rc/* branch to production
         required: true
+        type: choice
+        options:
+          - bump-dev
+          - cut-rc
+          - cut-prod
+        default: bump-dev
+      bump_type:
+        description: >
+          For bump-dev — dev: increment counter (1.0.0-dev.1 → 1.0.0-dev.2);
+          patch/minor/major: bump x.y.z and reset to dev.1
+        required: false
         type: choice
         options:
           - dev
-          - rc
-          - prod
-        default: dev
-      bump:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
           - patch
           - minor
           - major
         default: minor
-      prerelease_token:
-        description: "Prerelease token for dev/rc channel (must match channel on main)"
-        required: false
-        type: string
-        default: dev
+
+permissions:
+  contents: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -48,101 +71,144 @@ jobs:
       - name: Install dependencies
         run: pdm install -G dev
 
-      - name: Run checks
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Quality gate — skipped for bump-dev since no code changes.
+      - name: Run quality checks
+        if: ${{ github.event.inputs.action != 'bump-dev' }}
         run: |
           pdm run lint
           pdm run typecheck
           pdm run test
 
-      - name: Enforce main branch version policy
+      # Validate branch, parse current version, compute new version and release
+      # metadata, then write all outputs for the steps that follow.
+      - name: Compute release parameters
+        id: params
         env:
-          BRANCH_NAME: ${{ github.ref_name }}
-          CHANNEL: ${{ github.event.inputs.channel }}
-          PRERELEASE_TOKEN: ${{ github.event.inputs.prerelease_token }}
+          ACTION: ${{ github.event.inputs.action }}
+          BUMP_TYPE: ${{ github.event.inputs.bump_type }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          if [[ "$BRANCH_NAME" == "main" ]]; then
-            if [[ "$CHANNEL" != "dev" ]]; then
-              echo "main branch can only create dev-channel releases"
-              exit 1
-            fi
-            if [[ "$PRERELEASE_TOKEN" != "dev" ]]; then
-              echo "main branch requires prerelease_token=dev"
-              exit 1
-            fi
-          fi
+          python - <<'PY'
+          import os, re, subprocess, sys, tomllib
 
-          if [[ "$CHANNEL" == "rc" && "$PRERELEASE_TOKEN" != "rc" ]]; then
-            echo "rc channel requires prerelease_token=rc"
-            exit 1
-          fi
+          action    = os.environ["ACTION"]
+          bump_type = os.environ.get("BUMP_TYPE", "minor")
+          branch    = os.environ["BRANCH"]
 
-      - name: Bump version
-        env:
-          CHANNEL: ${{ github.event.inputs.channel }}
-          BUMP: ${{ github.event.inputs.bump }}
-          PRERELEASE_TOKEN: ${{ github.event.inputs.prerelease_token }}
-        run: |
-          BUMP_FLAG="--$BUMP"
+          DEV_RE = re.compile(r'^(\d+)\.(\d+)\.(\d+)-dev\.(\d+)$')
+          RC_RE  = re.compile(r'^(\d+)\.(\d+)\.(\d+)-rc\.(\d+)$')
 
-          if [[ "$CHANNEL" == "dev" || "$CHANNEL" == "rc" ]]; then
-            python -m semantic_release version \
-              "$BUMP_FLAG" \
-              --as-prerelease \
-              --prerelease-token "$PRERELEASE_TOKEN" \
-              --skip-build \
-              --no-vcs-release \
-              --no-push \
-              --no-tag
-          elif [[ "$CHANNEL" == "prod" ]]; then
-            python -m semantic_release version \
-              "$BUMP_FLAG" \
-              --skip-build \
-              --no-vcs-release \
-              --no-push \
-              --no-tag
-          else
-            echo "Unsupported channel: $CHANNEL"
-            exit 1
-          fi
+          with open("pyproject.toml", "rb") as f:
+              current = tomllib.load(f)["project"]["version"]
 
-      - name: Create channel tag
-        env:
-          CHANNEL: ${{ github.event.inputs.channel }}
-        run: |
-          VERSION=$(python - <<'PY'
-          import tomllib
-          with open('pyproject.toml', 'rb') as f:
-              data = tomllib.load(f)
-          print(data['project']['version'])
+          def out(key, value):
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write(f"{key}={value}\n")
+
+          def fail(msg):
+              print(f"::error::{msg}", file=sys.stderr)
+              sys.exit(1)
+
+          if action == "bump-dev":
+              if branch != "main":
+                  fail(f"bump-dev must run on main, got branch: {branch!r}")
+              m = DEV_RE.match(current)
+              if not m:
+                  fail(f"Expected X.Y.Z-dev.N on main, got: {current!r}")
+              x, y, z, n = (int(m.group(i)) for i in range(1, 5))
+              if   bump_type == "dev":   new = f"{x}.{y}.{z}-dev.{n + 1}"
+              elif bump_type == "patch": new = f"{x}.{y}.{z + 1}-dev.1"
+              elif bump_type == "minor": new = f"{x}.{y + 1}.0-dev.1"
+              elif bump_type == "major": new = f"{x + 1}.0.0-dev.1"
+              else: fail(f"Unknown bump_type: {bump_type!r}")
+              out("new_version", new)
+              out("release_branch", "main")
+              out("tag", "")
+
+          elif action == "cut-rc":
+              if branch != "main":
+                  fail(f"cut-rc must run on main, got branch: {branch!r}")
+              m = DEV_RE.match(current)
+              if not m:
+                  fail(f"Expected X.Y.Z-dev.N on main, got: {current!r}")
+              x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
+              xyz = f"{x}.{y}.{z}"
+              # Determine next rc counter from existing tags for this x.y.z.
+              tags = subprocess.check_output(
+                  ["git", "tag", "--list", f"rc-v{xyz}-rc.*"]
+              ).decode().split()
+              ns = [int(re.search(r"rc\.(\d+)$", t).group(1))
+                    for t in tags if re.search(r"rc\.(\d+)$", t)]
+              n = max(ns) + 1 if ns else 1
+              new = f"{xyz}-rc.{n}"
+              out("new_version", new)
+              out("release_branch", f"rc/{xyz}")
+              out("tag", f"rc-v{new}")
+
+          elif action == "cut-prod":
+              if not branch.startswith("rc/"):
+                  fail(f"cut-prod must run on an rc/* branch, got: {branch!r}")
+              m = RC_RE.match(current)
+              if not m:
+                  fail(f"Expected X.Y.Z-rc.N on rc branch, got: {current!r}")
+              x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
+              new = f"{x}.{y}.{z}"
+              out("new_version", new)
+              out("release_branch", f"prod/{x}.{y}.{z}")
+              out("tag", f"v{new}")
+
+          else:
+              fail(f"Unknown action: {action!r}")
           PY
-          )
 
-          if [[ "$CHANNEL" == "dev" ]]; then
-            TAG_NAME="dev-v$VERSION"
-          elif [[ "$CHANNEL" == "rc" ]]; then
-            TAG_NAME="rc-v$VERSION"
-          elif [[ "$CHANNEL" == "prod" ]]; then
-            TAG_NAME="v$VERSION"
-          else
-            echo "Unsupported channel: $CHANNEL"
-            exit 1
-          fi
-
-          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
-
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Tag already exists locally: $TAG_NAME"
-            exit 1
-          fi
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
-            echo "Tag already exists on origin: $TAG_NAME"
-            exit 1
-          fi
-
-          git tag "$TAG_NAME"
-
-      - name: Push release commit and channel tag
+      - name: Update version in pyproject.toml
+        env:
+          NEW_VERSION: ${{ steps.params.outputs.new_version }}
         run: |
-          git push origin HEAD
-          git push origin "$TAG_NAME"
+          python - <<'PY'
+          import os, re
+          v = os.environ["NEW_VERSION"]
+          with open("pyproject.toml") as f:
+              text = f.read()
+          updated = re.sub(
+              r'^(version\s*=\s*")[^"]*(")',
+              rf'\g<1>{v}\2',
+              text,
+              flags=re.MULTILINE,
+          )
+          assert updated != text, "version= line not found in pyproject.toml"
+          with open("pyproject.toml", "w") as f:
+              f.write(updated)
+          print(f"Set version to {v}")
+          PY
+
+      # bump-dev: commit and push directly to main.
+      - name: Commit and push to main
+        if: ${{ github.event.inputs.action == 'bump-dev' }}
+        env:
+          NEW_VERSION: ${{ steps.params.outputs.new_version }}
+        run: |
+          git add pyproject.toml
+          git commit -m "chore: bump version to ${NEW_VERSION}"
+          git push origin main
+
+      # cut-rc / cut-prod: create the release branch, commit, tag, push.
+      # The pushed tag triggers publish-test.yml (rc-v*) or publish.yml (v*).
+      - name: Create release branch, commit, tag and push
+        if: ${{ github.event.inputs.action == 'cut-rc' || github.event.inputs.action == 'cut-prod' }}
+        env:
+          NEW_VERSION: ${{ steps.params.outputs.new_version }}
+          RELEASE_BRANCH: ${{ steps.params.outputs.release_branch }}
+          TAG: ${{ steps.params.outputs.tag }}
+        run: |
+          git checkout -B "$RELEASE_BRANCH"
+          git add pyproject.toml
+          git commit -m "chore: release ${NEW_VERSION}"
+          git tag "$TAG"
+          git push origin "$RELEASE_BRANCH"
+          git push origin "$TAG"

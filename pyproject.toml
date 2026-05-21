@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["math", "complex", "fraction", "gaussian-rational", "numeric", "exact", "imaginary", "rational", "scalar", "gaussian", "arithmetic"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: MIT License",
@@ -29,7 +29,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "typing-extensions>=4.8; python_version < '3.11'",
+  "typing-extensions>=4.8; python_version < '3.12'",
 ]
 
 [tool.pdm]
@@ -41,7 +41,6 @@ includes = ["gaussian_rational"]
 [dependency-groups]
 dev = [
   "mypy>=1.11.0",
-  "python-semantic-release>=10.5.0",
   "pytest>=8.3.0",
   "ruff>=0.6.0",
 ]
@@ -50,10 +49,6 @@ dev = [
 test = "pytest"
 lint = "ruff check ."
 typecheck = "mypy gaussian_rational"
-release-print = "python -m semantic_release version --print"
-release-patch = "python -m semantic_release version --patch --skip-build --no-vcs-release --no-push"
-release-minor = "python -m semantic_release version --minor --skip-build --no-vcs-release --no-push"
-release-major = "python -m semantic_release version --major --skip-build --no-vcs-release --no-push"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -72,9 +67,3 @@ python_version = "3.10"
 strict = true
 packages = ["gaussian_rational"]
 
-[tool.semantic_release]
-version_toml = ["pyproject.toml:project.version"]
-build_command = "pdm build"
-tag_format = "v{version}"
-commit_message = "chore(release): {version}"
-allow_zero_version = true
