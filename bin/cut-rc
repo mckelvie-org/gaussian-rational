@@ -1,12 +1,54 @@
 #!/usr/bin/env bash
+# Cut an rc/<x.y.z> branch from the current HEAD of main.
+# Computes the next rc counter from existing tags, sets pyproject.toml to
+# X.Y.Z-rc.N, commits, and pushes — triggering publish-test.yml.
 set -euo pipefail
 
-git fetch origin main
-AHEAD=$(git rev-list origin/main..HEAD --count 2>/dev/null || echo 0)
+if [[ "$(git branch --show-current)" != "main" ]]; then
+    echo "error: cut-rc must be run on main" >&2
+    exit 1
+fi
+
+git fetch --tags origin main
+AHEAD=$(git rev-list origin/main..HEAD --count)
 if [[ "$AHEAD" -gt 0 ]]; then
     echo "error: local main is $AHEAD commit(s) ahead of origin/main — push first" >&2
     exit 1
 fi
 
-gh workflow run release.yml --ref main -f action=cut-rc -f bump_type=dev
-gh run watch
+eval "$(python - <<'PY'
+import re, subprocess, sys, tomllib
+
+with open("pyproject.toml", "rb") as f:
+    current = tomllib.load(f)["project"]["version"]
+
+m = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)-dev\.(\d+)", current)
+if not m:
+    sys.exit(f"expected X.Y.Z-dev.N in pyproject.toml, got: {current!r}")
+
+x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
+xyz = f"{x}.{y}.{z}"
+
+tags = subprocess.check_output(["git", "tag", "--list", f"rc-v{xyz}-rc.*"]).decode().split()
+ns = [int(re.search(r"rc\.(\d+)$", t).group(1)) for t in tags if re.search(r"rc\.(\d+)$", t)]
+n = max(ns) + 1 if ns else 1
+new = f"{xyz}-rc.{n}"
+
+with open("pyproject.toml") as f:
+    text = f.read()
+updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re.MULTILINE)
+assert updated != text, "version= line not found in pyproject.toml"
+with open("pyproject.toml", "w") as f:
+    f.write(updated)
+
+print(f"version: {current} → {new}", file=sys.stderr)
+print(f"RC_VERSION={new}")
+print(f"RC_BRANCH=rc/{xyz}")
+PY
+)"
+
+git checkout -B "$RC_BRANCH"
+git add pyproject.toml
+git commit -m "chore: release $RC_VERSION"
+git push origin "$RC_BRANCH"
+git checkout main

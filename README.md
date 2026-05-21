@@ -312,10 +312,11 @@ only the qualifier suffix changes.
 
 ### Release workflow
 
-All release operations go through the **Release** workflow
-(`Actions → Release → Run workflow`):
+**Bump dev version** — increment the version on `main`.
 
-**`bump-dev`** (run on `main`) — increment the dev version.
+```bash
+bin/bump-dev [dev|patch|minor|major]   # edits pyproject.toml, does not commit
+```
 
 | `bump_type` | Example |
 |---|---|
@@ -324,23 +325,26 @@ All release operations go through the **Release** workflow
 | `minor` | `1.0.0-dev.2` → `1.1.0-dev.1` |
 | `major` | `1.0.0-dev.2` → `2.0.0-dev.1` |
 
-**`cut-rc`** (run on `main`) — create a release candidate.
+Also available remotely via `Actions → Bump dev version → Run workflow` for
+cases where a local checkout is not convenient.
 
-Reads `X.Y.Z` from `main`, auto-increments the rc counter from existing tags,
-creates branch `rc/X.Y.Z` and tag `rc-vX.Y.Z-rc.N`, and triggers
-`Publish TestPyPI`.
+**`bin/cut-rc`** (run on `main`) — create a release candidate.
 
-**`cut-prod`** (run on `rc/<x.y.z>`) — promote to production.
+Reads `X.Y.Z-dev.N` from `pyproject.toml`, auto-increments the rc counter
+from existing tags, creates branch `rc/X.Y.Z` with version `X.Y.Z-rc.N`,
+and pushes — triggering `Publish TestPyPI`.
 
-Creates branch `prod/X.Y.Z` and tag `vX.Y.Z`, which triggers `Publish`.
-After a successful PyPI push, the workflow automatically bumps `main` to
-`X.(Y+1).0-dev.1`.
+**`bin/cut-prod`** (run on `rc/<x.y.z>`) — promote to production.
+
+Strips the rc qualifier, creates branch `prod/X.Y.Z` with the clean `X.Y.Z`
+version, and pushes — triggering `Publish`, which tags the commit `vX.Y.Z`
+and auto-bumps `main` to `X.Y.(Z+1)-dev.1` after a successful PyPI push.
 
 ### Guards
 
 Both publish workflows validate that:
 
-- The tag version matches `pyproject.toml`'s version.
+- The branch version matches `pyproject.toml`'s version.
 - The version format matches the target index (stable for PyPI, `-rc.N` for
   TestPyPI).
 - The version does not already exist on the target index.
