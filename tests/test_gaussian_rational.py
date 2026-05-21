@@ -22,9 +22,9 @@ def _naive_pow(base: GaussianRational, exponent: int) -> GaussianRational:
 
 
 def test_constructor_normalizes_inputs() -> None:
-    assert GaussianRational(2).a == Fraction(2)
-    assert GaussianRational((3, 4)).b == Fraction(4)
-    assert GaussianRational(Fraction(5, 7), 1).a == Fraction(5, 7)
+    assert GaussianRational(2).real == Fraction(2)
+    assert GaussianRational((3, 4)).imag == Fraction(4)
+    assert GaussianRational(Fraction(5, 7), 1).real == Fraction(5, 7)
 
 
 def test_arithmetic_operations() -> None:
@@ -59,7 +59,7 @@ def test_division_by_zero() -> None:
 def test_immutable_instance() -> None:
     value = GaussianRational(1, 2)
     with pytest.raises(AttributeError):
-        value.a = Fraction(3)
+        value.real = Fraction(3)
 
 
 def test_bool_semantics_match_complex() -> None:

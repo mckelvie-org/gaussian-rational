@@ -254,16 +254,16 @@ class GaussianRational:
     """
     
     # __slots__ keeps instances compact and enforces a fixed attribute set.
-    __slots__ = ("a", "b")
+    __slots__ = ("real", "imag")
 
     # Default symbol used when formatting imaginary values.
     default_imag_char: ClassVar[str] = "j"
     
-    a: Fraction
-    """The rational real part of the number."""
-    
-    b: Fraction
-    """The rational imaginary part of the number."""
+    real: Fraction
+    """The rational real part, mirroring :attr:`complex.real`."""
+
+    imag: Fraction
+    """The rational imaginary part, mirroring :attr:`complex.imag`."""
 
     # Enforce immutability
     def __setattr__(self, name: str, value: Any) -> None:
@@ -327,8 +327,8 @@ class GaussianRational:
             # We want to allow this to support upcasting from GaussianRational to subclasses of GaussianRational, but we need to make
             # sure to create a copy rather than just returning v.
             # We already verified that v2 is None
-            a_raw = v.a
-            b_raw = v.b
+            a_raw = v.real
+            b_raw = v.imag
         elif isinstance(v, tuple):
             # v is a (real_part, imaginary_part) tuple. v2 must be None in this case.
             if v2 is not None:
@@ -352,8 +352,8 @@ class GaussianRational:
         b = upcast_fraction(b_raw)
 
         # Set the attributes using object.__setattr__ to bypass the immutability enforcement in __setattr__.
-        object.__setattr__(self, "a", a)
-        object.__setattr__(self, "b", b)
+        object.__setattr__(self, "real", a)
+        object.__setattr__(self, "imag", b)
         return self
 
     @classmethod
@@ -426,8 +426,8 @@ class GaussianRational:
             canonical = canonical.replace(ch, "j")
 
         terms = _split_additive_terms(canonical)
-        real = Fraction(0)
-        imag = Fraction(0)
+        a = Fraction(0)
+        b = Fraction(0)
 
         for raw_term in terms:
             if raw_term in ("", "+", "-"):
@@ -436,11 +436,13 @@ class GaussianRational:
             term = _strip_wrapping_parens(raw_term)
             j_count = term.count("j")
             if j_count == 0:
-                real += _parse_fraction_token(term)
+                a += _parse_fraction_token(term)
                 continue
             if j_count != 1:
                 raise ValueError(f"Invalid imaginary term: {raw_term!r}")
 
+            # "j/" and "endswith j" are mutually exclusive given j_count == 1:
+            # a single j cannot be both followed by "/" and the last character.
             if "j/" in term:
                 j_pos = term.index("j")
                 left = term[:j_pos]
@@ -452,7 +454,7 @@ class GaussianRational:
                     left_coeff = Fraction(-1 if left == "-" else 1)
                 else:
                     left_coeff = _parse_fraction_token(left)
-                imag += left_coeff / _parse_integer_token(right)
+                b += left_coeff / _parse_integer_token(right)
                 continue
 
             if not term.endswith("j"):
@@ -460,7 +462,7 @@ class GaussianRational:
 
             left = term[:-1]
             if left in ("", "+", "-"):
-                imag += Fraction(-1 if left == "-" else 1)
+                b += Fraction(-1 if left == "-" else 1)
                 continue
 
             if "/" in left:
@@ -470,19 +472,19 @@ class GaussianRational:
                     raise ValueError(
                         f"Ambiguous fraction-imaginary term {raw_term!r}; use '(a/b)j', 'aj/b', or set interpret_slash_j_as_j_slash=True"
                     )
-            imag += _parse_fraction_token(left)
+            b += _parse_fraction_token(left)
 
-        return cls(real, imag)
+        return cls(a, b)
     
     def __hash__(self) -> int:
         """Return a hash consistent with numeric equality.
 
-        For purely real values, this matches ``hash(self.a)`` so values equal to
+        For purely real values, this matches ``hash(self.real)`` so values equal to
         real scalars (for example ``Fraction(3)`` or ``3``) hash identically.
         """
-        if self.b == 0:
-            return hash(self.a)
-        return hash((self.a, self.b))
+        if self.imag == 0:
+            return hash(self.real)
+        return hash((self.real, self.imag))
 
     @classmethod
     def _upcast(cls, other: object) -> Self | None:
@@ -517,7 +519,7 @@ class GaussianRational:
         u_other = self._upcast(other)
         if u_other is None:
             return NotImplemented
-        return type(self)(self.a + u_other.a, self.b + u_other.b)
+        return type(self)(self.real + u_other.real, self.imag + u_other.imag)
 
     @overload  # type: ignore[misc]
     def __radd__(self, other: GaussianRationalLike) -> Self: ...
@@ -526,10 +528,10 @@ class GaussianRational:
         u_other = self._upcast(other)
         if u_other is None:
             return NotImplemented
-        return type(self)(u_other.a + self.a, u_other.b + self.b)
+        return type(self)(u_other.real + self.real, u_other.imag + self.imag)
     
     def __neg__(self) -> Self:
-        return type(self)(-self.a, -self.b)
+        return type(self)(-self.real, -self.imag)
 
     def __pos__(self) -> Self:
         return self
@@ -540,7 +542,7 @@ class GaussianRational:
         u_other = self._upcast(other)
         if u_other is None:
             return NotImplemented
-        return type(self)(self.a - u_other.a, self.b - u_other.b)
+        return type(self)(self.real - u_other.real, self.imag - u_other.imag)
 
     @overload  # type: ignore[misc]
     def __rsub__(self, other: GaussianRationalLike) -> Self: ...
@@ -549,7 +551,7 @@ class GaussianRational:
         u_other = self._upcast(other)
         if u_other is None:
             return NotImplemented
-        return type(self)(u_other.a - self.a, u_other.b - self.b)
+        return type(self)(u_other.real - self.real, u_other.imag - self.imag)
 
     @overload  # type: ignore[misc]
     def __mul__(self, other: GaussianRationalLike) -> Self: ...
@@ -558,7 +560,7 @@ class GaussianRational:
         if u_other is None:
             return NotImplemented
         # (a + bi)(c + di) == (ac - bd) + (ad + bc)i
-        return type(self)(self.a * u_other.a - self.b * u_other.b, self.a * u_other.b + self.b * u_other.a)
+        return type(self)(self.real * u_other.real - self.imag * u_other.imag, self.real * u_other.imag + self.imag * u_other.real)
 
     @overload  # type: ignore[misc]
     def __rmul__(self, other: GaussianRationalLike) -> Self: ...
@@ -568,8 +570,8 @@ class GaussianRational:
         if u_other is None:
             return NotImplemented
         return type(self)(
-            u_other.a * self.a - u_other.b * self.b,
-            u_other.a * self.b + u_other.b * self.a,
+            u_other.real * self.real - u_other.imag * self.imag,
+            u_other.real * self.imag + u_other.imag * self.real,
         )
 
     @overload  # type: ignore[misc]
@@ -579,10 +581,10 @@ class GaussianRational:
         u_other = self._upcast(other)
         if u_other is None:
             return NotImplemented
-        denom = u_other.a * u_other.a + u_other.b * u_other.b
+        denom = u_other.real * u_other.real + u_other.imag * u_other.imag
         if denom == 0:
             raise ZeroDivisionError("GaussianRational division by 0")
-        return type(self)((self.a * u_other.a + self.b * u_other.b) / denom, (self.b * u_other.a - self.a * u_other.b) / denom)
+        return type(self)((self.real * u_other.real + self.imag * u_other.imag) / denom, (self.imag * u_other.real - self.real * u_other.imag) / denom)
 
     @overload  # type: ignore[misc]
     def __rtruediv__(self, other: GaussianRationalLike) -> Self: ...
@@ -621,7 +623,7 @@ class GaussianRational:
     
     def abs_squared(self) -> Fraction:
         """Return the exact squared magnitude ``a² + b²`` as a :class:`Fraction`."""
-        return self.a * self.a + self.b * self.b
+        return self.real * self.real + self.imag * self.imag
 
     def __abs__(self) -> float:
         """Return the magnitude ``sqrt(a² + b²)`` as a :class:`float`."""
@@ -629,7 +631,7 @@ class GaussianRational:
 
     def __complex__(self) -> complex:
         """Return a :class:`complex` value by casting both parts to :class:`float`."""
-        return complex(float(self.a), float(self.b))
+        return complex(float(self.real), float(self.imag))
 
     def __format__(self, format_spec: str) -> str:
         """Format this value for f-strings and ``format``.
@@ -655,57 +657,47 @@ class GaussianRational:
         if u_other is None:
             # We consider comparison to any type that can't be upcast to be unequal.
             return False
-        return self.a == u_other.a and self.b == u_other.b
-
-    @property
-    def real(self) -> Fraction:
-        """Real component, mirroring :class:`complex.real`."""
-        return self.a
-
-    @property
-    def imag(self) -> Fraction:
-        """Imaginary component, mirroring :class:`complex.imag`."""
-        return self.b
+        return self.real == u_other.real and self.imag == u_other.imag
 
     def conjugate(self) -> Self:
         """Return the complex conjugate ``a - bi``."""
-        return type(self)(self.a, -self.b)
+        return type(self)(self.real, -self.imag)
 
     def arg(self) -> float:
         """Return the counterclockwise angle from the positive real axis.
 
         The result is in radians and follows ``atan2(imag, real)`` semantics.
         """
-        return math.atan2(float(self.b), float(self.a))
+        return math.atan2(float(self.imag), float(self.real))
 
     def as_tuple(self) -> tuple[Fraction, Fraction]:
         """Return ``(real, imag)`` as a tuple of Fractions."""
-        return (self.a, self.b)
+        return (self.real, self.imag)
     
     @property
     def is_real(self) -> bool:
         """``True`` if the imaginary part is zero."""
-        return self.b == 0
+        return self.imag == 0
 
     @property
     def is_imaginary(self) -> bool:
         """``True`` if the real part is zero and the imaginary part is nonzero."""
-        return self.a == 0 and self.b != 0
+        return self.real == 0 and self.imag != 0
 
     @property
     def is_zero_or_imaginary(self) -> bool:
         """``True`` if the real part is zero (includes the value 0 itself)."""
-        return self.a == 0
+        return self.real == 0
 
     @property
     def is_composite(self) -> bool:
         """``True`` if both the real and imaginary parts are nonzero."""
-        return self.a != 0 and self.b != 0
+        return self.real != 0 and self.imag != 0
 
     @property
     def is_zero(self) -> bool:
         """``True`` if both parts are exactly zero."""
-        return self.a == 0 and self.b == 0
+        return self.real == 0 and self.imag == 0
     
     def format(
         self,
@@ -736,7 +728,7 @@ class GaussianRational:
         imag_char = self.default_imag_char if imag_char is None else imag_char
         if self.is_real:
             return format_fraction(
-                self.a,
+                self.real,
                 is_imaginary=False,
                 force_sign=force_sign,
                 parens_if_fraction=parens_if_composite,
@@ -744,7 +736,7 @@ class GaussianRational:
             )
         if self.is_imaginary:
             return format_fraction(
-                self.b,
+                self.imag,
                 is_imaginary=True,
                 force_sign=force_sign,
                 parens_if_fraction=parens_if_composite,
@@ -756,13 +748,13 @@ class GaussianRational:
             sign_prefix = "+" if force_sign else ""
             return (
                 f"{sign_prefix}("
-                f"{format_fraction(self.a, imag_char=imag_char)}"
-                f"{format_fraction(self.b, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
+                f"{format_fraction(self.real, imag_char=imag_char)}"
+                f"{format_fraction(self.imag, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
                 ")"
             )
         return (
-            f"{format_fraction(self.a, force_sign=force_sign, imag_char=imag_char)}"
-            f"{format_fraction(self.b, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
+            f"{format_fraction(self.real, force_sign=force_sign, imag_char=imag_char)}"
+            f"{format_fraction(self.imag, force_sign=True, is_imaginary=True, imag_char=imag_char)}"
         )
     
     def __str__(self) -> str:

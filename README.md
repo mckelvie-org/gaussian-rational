@@ -270,7 +270,7 @@ class TaggedGaussianRational(GaussianRational):
 Subclass contract for `repr` round-trips:
 
 `__repr__` is implemented as `f"{type(self).__name__}({self.format()!r})"`.
-A subclass that adds state beyond `a` and `b` must override both `format()`
+A subclass that adds state beyond the `real` and `imag` slots must override both `format()`
 (to encode that state in the string) and `parse()` (to decode it), so that
 `eval(repr(z))` remains a valid round-trip.
 
