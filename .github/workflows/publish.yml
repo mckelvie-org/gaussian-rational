@@ -1,19 +1,19 @@
 name: Publish
 
-# Triggered by v<x.y.z> tags pushed by the cut-prod action in release.yml.
+# Triggered by any push to a prod/<x.y.z> branch (done by cut-prod in release.yml).
 #
-# After a successful PyPI publish, automatically bumps main to the next minor
-# dev version (X.(Y+1).0-dev.1).  The bump is skipped if main is already
-# ahead of the published version.
+# After a successful PyPI publish, tags the commit v<x.y.z>, then
+# automatically bumps main to the next patch dev version (X.Y.(Z+1)-dev.1).
+# The bump is skipped if main is already ahead of the published version.
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - "prod/**"
 
 permissions:
   id-token: write  # Required for OIDC trusted publishing.
-  contents: write  # Required for the post-publish main version bump.
+  contents: write  # Required to push the vX.Y.Z tag and the main version bump.
 
 jobs:
   publish:
@@ -34,29 +34,29 @@ jobs:
       - name: Install dependencies
         run: pdm install -G dev
 
-      - name: Validate tag and version
+      - name: Validate branch and version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          BRANCH_VERSION="${GITHUB_REF_NAME#prod/}"
           PROJECT_VERSION=$(python -c "
           import tomllib
           print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])
           ")
-          if [[ "$TAG_VERSION" != "$PROJECT_VERSION" ]]; then
-            echo "::error::Tag version ($TAG_VERSION) != pyproject version ($PROJECT_VERSION)"
+          if [[ "$BRANCH_VERSION" != "$PROJECT_VERSION" ]]; then
+            echo "::error::Branch version ($BRANCH_VERSION) != pyproject version ($PROJECT_VERSION)"
             exit 1
           fi
-          if [[ "$TAG_VERSION" =~ [A-Za-z] ]]; then
-            echo "::error::PyPI publish requires a stable version, got: $TAG_VERSION"
+          if [[ "$BRANCH_VERSION" =~ [A-Za-z] ]]; then
+            echo "::error::PyPI publish requires a stable version, got: $BRANCH_VERSION"
             exit 1
           fi
+          echo "VERSION=$BRANCH_VERSION" >> "$GITHUB_ENV"
 
       - name: Check not already on PyPI
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           HTTP=$(curl -s -o /dev/null -w "%{http_code}" \
-            "https://pypi.org/pypi/gaussian-rational/$VERSION/json")
+            "https://pypi.org/pypi/gaussian-rational/${VERSION}/json")
           if [[ "$HTTP" == "200" ]]; then
-            echo "::error::Version $VERSION is already on PyPI"
+            echo "::error::Version ${VERSION} is already on PyPI"
             exit 1
           fi
 
@@ -74,25 +74,31 @@ jobs:
         with:
           packages-dir: dist/
 
-      # Runs only after a successful publish.  Bumps main to X.(Y+1).0-dev.1
-      # unless main is already ahead of the version just published.
-      - name: Bump main to next minor dev version
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Tag published commit
+        run: |
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      # Runs only after a successful publish.  Bumps main to X.Y.(Z+1)-dev.1
+      # unless main is already ahead of the version just published.
+      - name: Bump main to next patch dev version
+        run: |
           git fetch origin main
           git checkout main
 
           python - <<'PY'
           import os, re, sys, tomllib
 
-          prod_tag = os.environ["GITHUB_REF_NAME"]   # e.g. "v1.0.0"
-          prod     = prod_tag.lstrip("v")             # e.g. "1.0.0"
+          prod = os.environ["VERSION"]               # e.g. "1.0.0"
 
           pm = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", prod)
           if not pm:
-              sys.exit(f"Cannot parse prod version from tag: {prod_tag!r}")
+              sys.exit(f"Cannot parse prod version: {prod!r}")
           px, py_, pz = int(pm.group(1)), int(pm.group(2)), int(pm.group(3))
 
           with open("pyproject.toml", "rb") as f:
@@ -133,9 +139,8 @@ jobs:
           import tomllib
           print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])
           ")
-          PROD_VERSION="${GITHUB_REF_NAME#v}"
           git add pyproject.toml
-          git commit -m "chore: bump main to ${NEW_VERSION} after ${PROD_VERSION} release"
+          git commit -m "chore: bump main to ${NEW_VERSION} after v${VERSION} release"
 
           # A concurrent push to main between our fetch and now would cause a
           # non-fast-forward failure.  Rebase once and retry before giving up.
