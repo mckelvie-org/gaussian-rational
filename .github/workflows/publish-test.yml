@@ -17,6 +17,7 @@ permissions:
 jobs:
   publish-test:
     runs-on: ubuntu-latest
+    environment: testpypi
 
     steps:
       - name: Checkout
