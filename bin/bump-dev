@@ -11,7 +11,7 @@ set -euo pipefail
 
 BUMP_TYPE="${1:-dev}"
 
-python - "$BUMP_TYPE" <<'PY'
+pdm run python - "$BUMP_TYPE" <<'PY'
 import re, sys
 
 bump_type = sys.argv[1]

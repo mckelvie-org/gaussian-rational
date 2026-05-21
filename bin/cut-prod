@@ -18,7 +18,7 @@ if [[ "$AHEAD" -gt 0 ]]; then
     exit 1
 fi
 
-eval "$(python - <<'PY'
+eval "$(pdm run python - <<'PY'
 import re, sys
 
 with open("pyproject.toml") as f:
@@ -45,7 +45,7 @@ trap 'git worktree remove --force "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
 
 git worktree add --detach "$TMP" HEAD
 
-python - "$PROD_VERSION" "$TMP/pyproject.toml" <<'PY'
+pdm run python - "$PROD_VERSION" "$TMP/pyproject.toml" <<'PY'
 import re, sys
 new, path = sys.argv[1], sys.argv[2]
 with open(path) as f:
