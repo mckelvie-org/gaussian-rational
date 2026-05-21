@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+gh workflow run release.yml --ref main -f action=cut-rc -f bump_type=dev
+gh run watch

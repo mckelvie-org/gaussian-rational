@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BRANCH=$(git branch --show-current)
+if [[ ! "$BRANCH" =~ ^rc/ ]]; then
+    echo "error: must be run on an rc/* branch (current: ${BRANCH:-detached HEAD})" >&2
+    exit 1
+fi
+
+gh workflow run release.yml --ref "$BRANCH" -f action=cut-prod -f bump_type=dev
+gh run watch
