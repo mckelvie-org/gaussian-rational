@@ -34,6 +34,9 @@ dependencies = [
 
 [tool.pdm]
 distribution = true
+plugins = [
+    "-e file:///${PROJECT_ROOT}/scripts/pdm/plugins/pdm_bin_dir",
+]
 
 [tool.pdm.build]
 includes = ["gaussian_rational"]
