@@ -32,6 +32,12 @@ dependencies = [
   "typing-extensions>=4.8; python_version < '3.12'",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mckelvie-org/gaussian-rational"
+Source = "https://github.com/mckelvie-org/gaussian-rational"
+"Bug Tracker" = "https://github.com/mckelvie-org/gaussian-rational/issues"
+Changelog = "https://github.com/mckelvie-org/gaussian-rational/releases"
+
 [dependency-groups]
 dev = [
     "mypy>=1.11.0",
