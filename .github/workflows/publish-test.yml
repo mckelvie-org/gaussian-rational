@@ -1,5 +1,5 @@
 name: Publish TestPyPI
-run-name: "Publish TestPyPI · ${{ github.ref_name }}"
+run-name: "Publish TestPyPI · rc"
 
 # Triggered by any push to the rc branch (done by cut-rc).
 # Validates that pyproject.toml carries an X.Y.Z-rc.N version, runs quality

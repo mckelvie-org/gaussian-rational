@@ -1,4 +1,5 @@
 name: Publish
+run-name: "Publish PyPI · prod"
 
 # Triggered by any push to the prod branch (done by cut-prod).
 #
