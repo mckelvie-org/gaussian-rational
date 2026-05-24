@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "gaussian-rational"
-version = "1.0.1-dev.1"
+version = "1.0.1-rc.2"
 description = "Exact complex-like scalars with rational real and imaginary parts."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -34,7 +34,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/mckelvie-org/gaussian-rational"
-Source = "https://github.com/mckelvie-org/gaussian-rational"
+Source = "https://github.com/mckelvie-org/gaussian-rational/tree/v1.0.1-rc.2"
 "Bug Tracker" = "https://github.com/mckelvie-org/gaussian-rational/issues"
 Changelog = "https://github.com/mckelvie-org/gaussian-rational/releases"
 
