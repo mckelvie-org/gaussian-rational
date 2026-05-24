@@ -20,7 +20,8 @@
   },
   "terminal.integrated.env.osx": {
     "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-    "PATH": "${workspaceFolder}/.venv/bin:${workspaceFolder}/bin:${env:PATH}"
+    "PATH": "${workspaceFolder}/.venv/bin:${workspaceFolder}/bin:${env:PATH}",
+    "STICKY_PS1": "\\[\\033[1;32m\\](${workspaceFolderBasename})\\[\\033[00m\\] \\w\\$ "
   },
   "terminal.integrated.defaultProfile.linux": "bash",
   "terminal.integrated.profiles.linux": {
@@ -28,6 +29,7 @@
   },
   "terminal.integrated.env.linux": {
     "VIRTUAL_ENV": "${workspaceFolder}/.venv",
-    "PATH": "${workspaceFolder}/.venv/bin:${workspaceFolder}/bin:${env:PATH}"
+    "PATH": "${workspaceFolder}/.venv/bin:${workspaceFolder}/bin:${env:PATH}",
+    "STICKY_PS1": "\\[\\033[1;32m\\](${workspaceFolderBasename})\\[\\033[00m\\] \\w\\$ "
   }
 }
