@@ -65,9 +65,6 @@ packages = ["gaussian_rational"]
 
 [tool.pdm]
 distribution = true
-plugins = [
-    "pdm-bin-dir"
-]
 
 [tool.pdm.build]
 includes = ["gaussian_rational"]

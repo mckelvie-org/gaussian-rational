@@ -11,4 +11,4 @@ esac
 # ── PDM plugins ───────────────────────────────────────────────────────────────
 
 echo "Installing PDM plugins..." >&2
-pdm install --plugins
+pdm self add pdm-bin-dir
