@@ -8,6 +8,10 @@ case "$(uname -s)" in
     *) echo "error: this script supports macOS and Linux only" >&2; exit 1 ;;
 esac
 
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_ROOT=$( cd -- "$SCRIPT_DIR/.." &> /dev/null && pwd )
+cd "$PROJECT_ROOT"
+
 # ── PDM ──────────────────────────────────────────────────────────────────────
 
 if command -v pdm &>/dev/null; then
@@ -49,15 +53,8 @@ MSG
     echo "pdm $(pdm --version) installed"
 fi
 
-# ── PDM plugins ───────────────────────────────────────────────────────────────
-
-echo "Installing PDM plugins..."
-pdm self add pdm_bin_dir
-
-# ── Python dependencies ───────────────────────────────────────────────────────
-
 echo "Installing Python dependencies..."
-pdm install -G dev
+pdm install
 
 echo ""
 echo "Done.  Run 'pdm run test' to verify the setup."

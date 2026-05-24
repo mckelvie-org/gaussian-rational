@@ -65,6 +65,9 @@ packages = ["gaussian_rational"]
 
 [tool.pdm]
 distribution = true
+plugins = [
+    "pdm-bin-dir"
+]
 
 [tool.pdm.build]
 includes = ["gaussian_rational"]
@@ -73,6 +76,7 @@ includes = ["gaussian_rational"]
 test = "pytest"
 lint = "ruff check ."
 typecheck = "mypy gaussian_rational"
+post_install = "./bin/post-install"
 
 [tool.pdm.plugin.bin-dir]
 dirs = ["bin"]
