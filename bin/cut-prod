@@ -104,6 +104,11 @@ updated = re.sub(r'^(version\s*=\s*")[^"]*(")', rf'\g<1>{new}\2', text, flags=re
 assert updated != text, "version= line not found in pyproject.toml"
 source_url = f"https://github.com/{github_repo}/tree/v{new}"
 updated = re.sub(r'^(Source\s*=\s*")[^"]*(")', rf'\g<1>{source_url}\2', updated, flags=re.MULTILINE)
+updated = re.sub(
+    r'("Development Status :: )\d+ - \w+(")',
+    r'\g<1>5 - Production/Stable\2',
+    updated,
+)
 with open(toml_path, "w") as f:
     f.write(updated)
 
