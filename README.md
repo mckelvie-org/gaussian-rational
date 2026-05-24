@@ -281,84 +281,6 @@ Common pitfalls:
 - Adding mutable fields while keeping hashing enabled (invalidates hash
   contract if mutable fields affect equality).
 
-## Development
-
-This project uses [PDM](https://pdm-project.org/) for dependency management,
-linting, type checking, and testing.
-
-```bash
-pdm install -G dev
-pdm run lint       # ruff check
-pdm run typecheck  # mypy
-pdm run test       # pytest
-pdm build
-```
-
-## Publishing
-
-Releases are managed through GitHub Actions using a three-channel model:
-
-| Channel | Branch | Tag format | Index |
-|---|---|---|---|
-| dev | `main` | — (no publish) | — |
-| rc | `rc/<x.y.z>` | `rc-v<x.y.z>-rc.<n>` | TestPyPI |
-| prod | `prod/<x.y.z>` | `v<x.y.z>` | PyPI |
-
-### Version invariant
-
-`main` always carries `X.Y.Z-dev.N`.  The `x.y.z` portion of any RC or
-production release always matches the commit on `main` from which it was cut —
-only the qualifier suffix changes.
-
-### Release workflow
-
-**Bump dev version** — increment the version on `main`.
-
-```bash
-bin/bump-dev [dev|patch|minor|major]   # edits pyproject.toml, does not commit
-```
-
-| `bump_type` | Example |
-|---|---|
-| `dev` | `1.0.0-dev.1` → `1.0.0-dev.2` |
-| `patch` | `1.0.0-dev.2` → `1.0.1-dev.1` |
-| `minor` | `1.0.0-dev.2` → `1.1.0-dev.1` |
-| `major` | `1.0.0-dev.2` → `2.0.0-dev.1` |
-
-Also available remotely via `Actions → Bump dev version → Run workflow` for
-cases where a local checkout is not convenient.
-
-**`bin/cut-rc`** (run on `main`) — create a release candidate.
-
-Reads `X.Y.Z-dev.N` from `pyproject.toml`, auto-increments the rc counter
-from existing tags, creates branch `rc/X.Y.Z` with version `X.Y.Z-rc.N`,
-and pushes — triggering `Publish TestPyPI`.
-
-**`bin/cut-prod`** (run on `rc/<x.y.z>`) — promote to production.
-
-Strips the rc qualifier, creates branch `prod/X.Y.Z` with the clean `X.Y.Z`
-version, and pushes — triggering `Publish`, which tags the commit `vX.Y.Z`
-and auto-bumps `main` to `X.Y.(Z+1)-dev.1` after a successful PyPI push.
-
-### Guards
-
-Both publish workflows validate that:
-
-- The branch version matches `pyproject.toml`'s version.
-- The version format matches the target index (stable for PyPI, `-rc.N` for
-  TestPyPI).
-- The version does not already exist on the target index.
-- Lint, type checks, and tests pass.
-
-### Install-path smoke test
-
-Use the **Install Smoke Test** workflow to verify an install without publishing
-or bumping a version:
-
-- `source=github` with a `git_ref` — installs directly from the repository.
-- `source=testpypi` with a `version` — installs an already-uploaded TestPyPI
-  build.
-
 ## Supported Python Versions
 
 Python 3.10 and later.
@@ -366,3 +288,7 @@ Python 3.10 and later.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+---
+
+For development and release workflow documentation, see [CONTRIBUTING.md](https://github.com/mckelvie-org/gaussian-rational/blob/main/CONTRIBUTING.md).

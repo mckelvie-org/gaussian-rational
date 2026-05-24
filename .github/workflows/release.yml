@@ -4,7 +4,7 @@ name: Bump dev version
 # checkout.  The preferred local equivalent is: bin/bump-dev [dev|patch|minor|major]
 #
 # cut-rc and cut-prod are handled by the local bin/ scripts, which push
-# directly to rc/** and prod/** branches, triggering publish-test.yml and
+# directly to the rc and prod branches, triggering publish-test.yml and
 # publish.yml respectively.
 
 on:
@@ -32,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configure git
         run: |
