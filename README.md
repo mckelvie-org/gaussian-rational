@@ -1,7 +1,7 @@
 # gaussian-rational
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](https://github.com/mckelvie-org/gaussian-rational/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/badge/pypi-v1.0.1rc2-blue.svg)](https://test.pypi.org/project/gaussian-rational/1.0.1rc2/)
+[![PyPI version](https://img.shields.io/badge/pypi-v1.0.1-blue.svg)](https://pypi.org/project/gaussian-rational/1.0.1/)
 [![Python versions](https://img.shields.io/badge/python-3.10%20|%203.11%20|%203.12%20|%203.13-blue.svg)](https://pypi.org/project/gaussian-rational/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
