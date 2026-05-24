@@ -32,26 +32,13 @@ dependencies = [
   "typing-extensions>=4.8; python_version < '3.12'",
 ]
 
-[tool.pdm]
-distribution = true
-plugins = [
-    "-e file:///${PROJECT_ROOT}/scripts/pdm/plugins/pdm_bin_dir",
-]
-
-[tool.pdm.build]
-includes = ["gaussian_rational"]
-
 [dependency-groups]
 dev = [
-  "mypy>=1.11.0",
-  "pytest>=8.3.0",
-  "ruff>=0.6.0",
+    "mypy>=1.11.0",
+    "pytest>=8.3.0",
+    "ruff>=0.6.0",
+    "pdm>=2.27.0",
 ]
-
-[tool.pdm.scripts]
-test = "pytest"
-lint = "ruff check ."
-typecheck = "mypy gaussian_rational"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
@@ -69,4 +56,18 @@ ignore = ["E501"]
 python_version = "3.10"
 strict = true
 packages = ["gaussian_rational"]
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.build]
+includes = ["gaussian_rational"]
+
+[tool.pdm.scripts]
+test = "pytest"
+lint = "ruff check ."
+typecheck = "mypy gaussian_rational"
+
+[tool.pdm.plugin.bin-dir]
+dirs = ["bin"]
 
