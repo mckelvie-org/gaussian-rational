@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# Cut an rc branch from the current HEAD of main.
+# Cut a release candidate by tagging the current HEAD of main.
 # Computes the next rc counter from existing tags, sets pyproject.toml to
-# X.Y.Z-rc.N, commits, and pushes — triggering publish-test.yml.
+# X.Y.Z-rc.N in a worktree, and pushes the tag — triggering publish-test.yml.
 # Uses a git worktree so the dev's working directory is never modified.
+#
+# Usage: cut-rc [--force]
+#   --force  overwrite an existing tag (allows retrying a failed publish)
 set -euo pipefail
+
+FORCE=0
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=1
+fi
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "error: working tree has uncommitted changes — commit or stash first" >&2
@@ -64,6 +72,14 @@ print(f"GITHUB_REPO={github_repo}")
 PY
 )"
 
+if git rev-parse "v$RC_VERSION" >/dev/null 2>&1; then
+    if [[ "$FORCE" -eq 0 ]]; then
+        echo "error: tag v$RC_VERSION already exists — use --force to overwrite" >&2
+        exit 1
+    fi
+    echo "warning: overwriting existing tag v$RC_VERSION" >&2
+fi
+
 TMP=$(mktemp -d)
 trap 'git worktree remove --force "$TMP" 2>/dev/null; rm -rf "$TMP"' EXIT
 
@@ -116,4 +132,11 @@ PY
 
 git -C "$TMP" add pyproject.toml CHANGELOG.md README.md
 git -C "$TMP" commit -m "chore: release $RC_VERSION"
-git -C "$TMP" push --force origin "HEAD:refs/heads/rc"
+
+if [[ "$FORCE" -eq 1 ]]; then
+    git -C "$TMP" tag -f "v$RC_VERSION"
+    git push --force origin "v$RC_VERSION"
+else
+    git -C "$TMP" tag "v$RC_VERSION"
+    git push origin "v$RC_VERSION"
+fi

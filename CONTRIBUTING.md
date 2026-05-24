@@ -17,14 +17,14 @@ pdm build
 
 Releases follow a three-channel model:
 
-| Channel | Branch | Tag format         | Index    |
-|---------|--------|--------------------|----------|
-| dev     | `main` | —                  | —        |
-| rc      | `rc`   | `v<x.y.z>-rc.<n>` | TestPyPI |
-| prod    | `prod` | `v<x.y.z>`         | PyPI     |
+| Channel | Tag format             | Moving tag   | Index    |
+|---------|------------------------|--------------|----------|
+| dev     | —                      | —            | —        |
+| rc      | `v<x.y.z>-rc.<n>`     | `rc-latest`  | TestPyPI |
+| prod    | `v<x.y.z>`             | `prod-latest`| PyPI     |
 
-`main` always carries `X.Y.Z-dev.N`. The `rc` and `prod` branches are
-force-pushed on each release; tags provide the durable history.
+`main` always carries `X.Y.Z-dev.N`. Releases are driven entirely by tags —
+no `rc` or `prod` branches are created.
 
 ### Bump the dev version
 
@@ -51,26 +51,29 @@ bin/cut-rc
 
 Reads `X.Y.Z-dev.N` from `pyproject.toml`, finds the next unused rc counter
 from existing `v<x.y.z>-rc.*` tags, sets the version to `X.Y.Z-rc.N` in a
-worktree, and force-pushes to the `rc` branch — triggering `Publish TestPyPI`.
+worktree, tags the commit `v<x.y.z>-rc.<n>`, and pushes the tag —
+triggering `Publish TestPyPI`.
 
-After a successful publish the workflow tags the commit `v<x.y.z>-rc.<n>`.
+After a successful publish the workflow updates the `rc-latest` tag.
 
 ### Cut a production release
 
 Run from anywhere on the repo:
 
 ```bash
-bin/cut-prod [RC_REF]
+bin/cut-prod [--force] [RC_REF]
 ```
 
 `RC_REF` is optional. Resolution order:
 1. Explicit argument (tag, sha, or bare version like `1.0.5-rc.1`).
 2. `HEAD`, if `pyproject.toml` in the working tree carries an `X.Y.Z-rc.N` version.
-3. `origin/rc` (the latest rc commit).
+3. The `rc-latest` tag (the most recently published rc).
 
-Strips the rc qualifier, commits to a worktree, and force-pushes to `prod` —
-triggering `Publish`, which tags the commit `v<x.y.z>` and auto-bumps `main`
-to `X.Y.(Z+1)-dev.1` after a successful PyPI push.
+Strips the rc qualifier, commits to a worktree, tags the commit `v<x.y.z>`,
+and pushes the tag — triggering `Publish`, which updates `prod-latest` and
+auto-bumps `main` to `X.Y.(Z+1)-dev.1` after a successful PyPI push.
+
+Use `--force` on either script to overwrite an existing tag and retry a failed publish.
 
 ### Guards
 

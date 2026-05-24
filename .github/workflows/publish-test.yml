@@ -1,15 +1,15 @@
 name: Publish TestPyPI
-run-name: "Publish TestPyPI · rc"
+run-name: "Publish TestPyPI · ${{ github.ref_name }}"
 
-# Triggered by any push to the rc branch (done by cut-rc).
+# Triggered by a push of a v<x.y.z>-rc.<n> tag (done by cut-rc).
 # Validates that pyproject.toml carries an X.Y.Z-rc.N version, runs quality
-# checks, publishes to TestPyPI via OIDC trusted publishing, then tags the
-# commit v<x.y.z>-rc.<n>.
+# checks, publishes to TestPyPI via OIDC trusted publishing, then updates
+# the rc-latest tag.
 
 on:
   push:
-    branches:
-      - "rc"
+    tags:
+      - 'v*-rc.*'
 
 jobs:
   test:
@@ -49,7 +49,7 @@ jobs:
     environment: testpypi
     permissions:
       id-token: write  # Required for OIDC trusted publishing.
-      contents: write  # Required to push the v<x.y.z>-rc.<n> tag after publish.
+      contents: write  # Required to update the rc-latest tag after publish.
 
     steps:
       - name: Checkout
@@ -66,10 +66,7 @@ jobs:
 
       - name: Validate version
         run: |
-          VERSION=$(python -c "
-          import tomllib
-          print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])
-          ")
+          VERSION="${GITHUB_REF_NAME#v}"
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
             echo "::error::TestPyPI publish requires X.Y.Z-rc.N version, got: $VERSION"
             exit 1
@@ -94,9 +91,9 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
-      - name: Tag published commit
+      - name: Update rc-latest tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
+          git tag -f rc-latest
+          git push --force origin rc-latest

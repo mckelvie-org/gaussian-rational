@@ -3,7 +3,7 @@ run-name: "CI · ${{ github.ref_name }}"
 
 on:
   push:
-    branches: ["**", "!rc", "!prod"]
+    branches: ["**"]
   pull_request:
 
 jobs:

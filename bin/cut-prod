@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # Promote an rc commit to prod.
-# Strips the rc qualifier from pyproject.toml, commits, and pushes —
-# triggering publish.yml.
+# Strips the rc qualifier from pyproject.toml, commits in a worktree, and
+# pushes the tag — triggering publish.yml.
 # Uses a git worktree so the dev's working directory is never modified.
 #
-# Usage: cut-prod [RC_REF]
-#   RC_REF  git ref to promote (tag, sha, branch). Bare version like
-#           "1.0.5-rc.1" is treated as tag "v1.0.5-rc.1".
-#           Defaults to HEAD if pyproject.toml has an X.Y.Z-rc.N version,
-#           otherwise origin/rc.
+# Usage: cut-prod [--force] [RC_REF]
+#   --force  overwrite an existing tag (allows retrying a failed publish)
+#   RC_REF   git ref to promote (tag, sha, branch). Bare version like
+#            "1.0.5-rc.1" is treated as tag "v1.0.5-rc.1".
+#            Defaults to HEAD if pyproject.toml has an X.Y.Z-rc.N version,
+#            otherwise the rc-latest tag.
 set -euo pipefail
+
+FORCE=0
+if [[ "${1:-}" == "--force" ]]; then
+    FORCE=1
+    shift
+fi
 
 if ! git diff --quiet || ! git diff --cached --quiet; then
     echo "error: working tree has uncommitted changes — commit or stash first" >&2
@@ -35,8 +42,8 @@ print(m.group(1) if m else '')
     if [[ -n "$CURRENT_VERSION" ]]; then
         RC_REF="HEAD"
     else
-        git fetch origin rc
-        RC_REF="origin/rc"
+        git fetch --tags origin
+        RC_REF="rc-latest"
     fi
 fi
 
@@ -78,6 +85,14 @@ print(f"PACKAGE_NAME={package_name}")
 print(f"GITHUB_REPO={github_repo}")
 PY
 )"
+
+if git rev-parse "v$PROD_VERSION" >/dev/null 2>&1; then
+    if [[ "$FORCE" -eq 0 ]]; then
+        echo "error: tag v$PROD_VERSION already exists — use --force to overwrite" >&2
+        exit 1
+    fi
+    echo "warning: overwriting existing tag v$PROD_VERSION" >&2
+fi
 
 pdm run python - "$PROD_VERSION" "$PACKAGE_NAME" "$GITHUB_REPO" "$TMP/pyproject.toml" "$TMP/README.md" <<'PY'
 import re, sys
@@ -124,4 +139,11 @@ PY
 
 git -C "$TMP" add pyproject.toml CHANGELOG.md README.md
 git -C "$TMP" commit -m "chore: release $PROD_VERSION"
-git -C "$TMP" push --force origin "HEAD:refs/heads/prod"
+
+if [[ "$FORCE" -eq 1 ]]; then
+    git -C "$TMP" tag -f "v$PROD_VERSION"
+    git push --force origin "v$PROD_VERSION"
+else
+    git -C "$TMP" tag "v$PROD_VERSION"
+    git push origin "v$PROD_VERSION"
+fi
