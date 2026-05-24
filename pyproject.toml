@@ -4,7 +4,7 @@ build-backend = "pdm.backend"
 
 [project]
 name = "gaussian-rational"
-version = "1.0.2-dev.1"
+version = "1.0.3-dev.1"
 description = "Exact complex-like scalars with rational real and imaginary parts."
 readme = "README.md"
 license = { file = "LICENSE" }
