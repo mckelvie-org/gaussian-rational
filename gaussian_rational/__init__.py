@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import re
+import sys
 from fractions import Fraction
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
@@ -26,7 +27,10 @@ from typing import (
     overload,
 )
 
-from typing_extensions import Self, override
+if sys.version_info >= (3, 12):
+    from typing import Self, override
+else:
+    from typing_extensions import Self, override
 
 try:
     __version__ = package_version("gaussian-rational")
